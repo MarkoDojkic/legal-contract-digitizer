@@ -1,0 +1,8 @@
+server:
+  port: ${PORT:18471}
+spring:
+  application:
+    name: Legal contract digitizer
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}

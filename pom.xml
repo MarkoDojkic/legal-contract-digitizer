@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.5.0</version>
+		<relativePath/>
+	</parent>
+	<groupId>dev.markodojkic</groupId>
+	<artifactId>legal-contract-digitizer</artifactId>
+	<version>1.0.0-SNAPSHOT</version>
+	<name>Legal contract digitizer</name>
+	<description>AI powered legal-to-smart contract converter</description>
+	<url>https://github.com/MarkoDojkic/legal-contract-digitizer</url>
+	<licenses>
+		<license>
+			<name>MIT License</name>
+			<url>https://github.com/MarkoDojkic/legal-contract-digitizer/blob/main/LICENSE</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+	<developers>
+		<developer>
+			<id>markodojkic</id>
+			<name>Marko Dojkić</name>
+			<email>marko.dojkic@gmail.com</email>
+			<roles>
+				<role>Project founder and lead developer</role>
+			</roles>
+		</developer>
+	</developers>
+	<scm>
+		<connection>scm:git:scm:git:git://github.com/MarkoDojkic/legal-contract-digitizer.git</connection>
+		<developerConnection>scm:git:scm:git:ssh://git@github.com:MarkoDojkic/legal-contract-digitizer.git</developerConnection>
+		<url>https://github.com/MarkoDojkic/legal-contract-digitizer</url>
+	</scm>
+	<issueManagement>
+		<system>GitHub</system>
+		<url>https://github.com/MarkoDojkic/legal-contract-digitizer</url>
+	</issueManagement>
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<application.version>${project.version}</application.version>
+		<java.version>24</java.version>
+		<spring.version>${parent.version}</spring.version>
+		<spring-ai.version>1.0.0-M8</spring-ai.version>
+		<firebase.version>21.0.0</firebase.version>
+		<web3j.version>5.0.0</web3j.version>
+		<sonar.projectKey>${project.artifactId}</sonar.projectKey>
+		<sonar.projectName>${project.name}</sonar.projectName>
+		<sonar.projectVersion>${application.version}</sonar.projectVersion>
+		<sonar.host.url>${env.SONAR_HOST_URL}</sonar.host.url>
+		<sonar.token>${env.SONAR_TOKEN}</sonar.token>
+		<sonar.java.binaries>target/classes</sonar.java.binaries>
+		<sonar.coverage.exclusions>
+			src/main/java/dev/markodojkic/softwaredevelopmentsimulation/LegalContractDigitizerApplication.java
+		</sonar.coverage.exclusions>
+		<sonar.dynamic>reuseReports</sonar.dynamic>
+	</properties>
+	<dependencies>
+		<!-- Spring -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+			<version>${spring.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+			<version>${spring.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-thymeleaf</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-starter-model-openai</artifactId>
+			<version>${spring-ai.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-tika-document-reader</artifactId>
+			<version>${spring-ai.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.thymeleaf.extras</groupId>
+			<artifactId>thymeleaf-extras-springsecurity6</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<scope>annotationProcessor</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-common</artifactId>
+			<version>21.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-auth</artifactId>
+			<version>${firebase.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-firestore</artifactId>
+			<version>${firebase.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.web3j</groupId>
+			<artifactId>core</artifactId>
+			<version>${web3j.version}</version>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.ai</groupId>
+				<artifactId>spring-ai-bom</artifactId>
+				<version>${spring-ai.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>com.google.firebase</groupId>
+				<artifactId>firebase-bom</artifactId>
+				<version>33.15.0</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<version>${spring.version}</version>
+			</plugin>
+		</plugins>
+	</build>
+	<repositories>
+		<repository>
+			<id>maven_central</id>
+			<name>Maven Central</name>
+			<url>https://repo.maven.apache.org/maven2/</url>
+		</repository>
+		<repository>
+			<id>google</id>
+			<url>https://maven.google.com</url>
+		</repository>
+	</repositories>
+</project>

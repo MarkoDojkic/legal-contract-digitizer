@@ -6,10 +6,11 @@ import com.google.cloud.firestore.Firestore;
 import com.google.firebase.cloud.FirestoreClient;
 import dev.markodojkic.legalcontractdigitizer.dto.CompilationResultDTO;
 import dev.markodojkic.legalcontractdigitizer.dto.DeploymentStatusResponseDTO;
+import dev.markodojkic.legalcontractdigitizer.util.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.enums.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.util.SolidityCompiler;
 import dev.markodojkic.legalcontractdigitizer.util.Web3jTypeUtil;
 import jakarta.annotation.PostConstruct;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,11 +29,12 @@ public class ContractServiceImpl implements IContractService {
 	private final AIService aiService;
 	private final EthereumService ethereumService;
 	private final SolidityCompiler solidityCompiler;
-	private Firestore db;
+	private final FileTextExtractorService fileTextExtractorService;
+	private Firestore firestore;
 
 	@PostConstruct
 	public void init() {
-		db = FirestoreClient.getFirestore();
+		firestore = FirestoreClient.getFirestore();
 	}
 
 	@Override
@@ -41,7 +43,7 @@ public class ContractServiceImpl implements IContractService {
 		String contractId = UUID.randomUUID().toString();
 		String initialStatus = ContractStatus.UPLOADED.name();
 
-		DocumentReference docRef = db.collection("contracts").document(contractId);
+		DocumentReference docRef = firestore.collection("contracts").document(contractId);
 		docRef.set(new DigitalizedContract(contractId, userId, contractText, initialStatus));
 
 		log.info("Contract saved with ID: {} by user: {} with status: {}", contractId, userId, initialStatus);
@@ -51,7 +53,7 @@ public class ContractServiceImpl implements IContractService {
 	@Override
 	public List<String> extractClauses(String contractId) {
 		try {
-			DocumentReference docRef = db.collection("contracts").document(contractId);
+			DocumentReference docRef = firestore.collection("contracts").document(contractId);
 			var snapshot = docRef.get().get();
 			if (!snapshot.exists()) {
 				log.warn("No contract found with ID {}", contractId);
@@ -81,14 +83,14 @@ public class ContractServiceImpl implements IContractService {
 
 		} catch (Exception e) {
 			log.error("Error extracting clauses for contract {}", contractId, e);
-			throw new RuntimeException("Clause extraction failed: " + e.getMessage());
+			throw new RuntimeException("Clause extraction failed", e);
 		}
 	}
 
 	@Override
 	public String generateSolidity(String contractId) {
 		try {
-			DocumentReference docRef = db.collection("contracts").document(contractId);
+			DocumentReference docRef = firestore.collection("contracts").document(contractId);
 			var snapshot = docRef.get().get();
 
 			if (!snapshot.exists()) {
@@ -122,7 +124,7 @@ public class ContractServiceImpl implements IContractService {
 
 		} catch (Exception e) {
 			log.error("Error generating Solidity for contract {}", contractId, e);
-			throw new RuntimeException("Failed to generate Solidity: " + e.getMessage());
+			throw new RuntimeException("Failed to generate Solidity", e);
 		}
 	}
 
@@ -134,7 +136,7 @@ public class ContractServiceImpl implements IContractService {
 		}
 
 		// Fetch stored contract document by contractId
-		DocumentReference contractRef = db.collection("contracts").document(contractId);
+		DocumentReference contractRef = firestore.collection("contracts").document(contractId);
 		try {
 			DocumentSnapshot snapshot = contractRef.get().get();
 			if (!snapshot.exists()) {
@@ -169,7 +171,7 @@ public class ContractServiceImpl implements IContractService {
 	@Override
 	public DeploymentStatusResponseDTO getContractStatus(String contractId) {
 		try {
-			DocumentReference docRef = db.collection("contracts").document(contractId);
+			DocumentReference docRef = firestore.collection("contracts").document(contractId);
 			var snapshot = docRef.get().get();
 
 			if (!snapshot.exists()) {
@@ -185,16 +187,9 @@ public class ContractServiceImpl implements IContractService {
 
 		} catch (Exception e) {
 			log.error("Failed to fetch contract status for {}", contractId, e);
-			throw new RuntimeException("Failed to retrieve contract status");
+			throw new RuntimeException("Failed to retrieve contract status", e);
 		}
 	}
-
-	private record DigitalizedContract(
-			String id,
-			String userId,
-			String contractText,
-			String status
-	) {}
 
 	private String buildSolidityFromClauses(List<String> clauses) {
 		StringBuilder sb = new StringBuilder();

@@ -46,8 +46,8 @@
 		<java.version>24</java.version>
 		<spring.version>${project.parent.version}</spring.version>
 		<spring-ai.version>1.0.0-M8</spring-ai.version>
-		<firebase.version>21.0.0</firebase.version>
 		<web3j.version>5.0.0</web3j.version>
+		<grpc.version>1.73.0</grpc.version>
 		<junit-jupiter.version>5.13.1</junit-jupiter.version>
 		<mockito.version>5.18.0</mockito.version>
 		<sonar.projectKey>${project.artifactId}</sonar.projectKey>
@@ -109,34 +109,35 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
+			<version>1.18.38</version>
 			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>com.google.firebase</groupId>
-			<artifactId>firebase-admin</artifactId>
-			<version>9.5.0</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.firebase</groupId>
-			<artifactId>firebase-common</artifactId>
-			<version>${firebase.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.firebase</groupId>
-			<artifactId>firebase-auth</artifactId>
-			<version>${firebase.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.firebase</groupId>
-			<artifactId>firebase-firestore</artifactId>
-			<version>${firebase.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 			<version>2.1.0</version>
 		</dependency>
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>2.0.17</version>
+		</dependency>
+		<dependency>
+			<groupId>org.aspectj</groupId>
+			<artifactId>aspectjweaver</artifactId>
+			<version>1.9.24</version>
+		</dependency>
+		<dependency>
+			<groupId>org.hibernate.validator</groupId>
+			<artifactId>hibernate-validator</artifactId>
+			<version>8.0.2.Final</version>
+		</dependency>
 
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>9.5.0</version>
+		</dependency>
 		<dependency>
 			<groupId>org.web3j</groupId>
 			<artifactId>core</artifactId>
@@ -147,7 +148,21 @@
 			<artifactId>contracts</artifactId>
 			<version>${web3j.version}</version>
 		</dependency>
-
+		<dependency>
+			<groupId>com.squareup.okio</groupId>
+			<artifactId>okio</artifactId>
+			<version>3.13.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-core</artifactId>
+			<version>${grpc.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-netty-shaded</artifactId>
+			<version>${grpc.version}</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -200,9 +215,9 @@
 				<scope>import</scope>
 			</dependency>
 			<dependency>
-				<groupId>com.google.firebase</groupId>
-				<artifactId>firebase-bom</artifactId>
-				<version>33.15.0</version>
+				<groupId>io.grpc</groupId>
+				<artifactId>grpc-bom</artifactId>
+				<version>${grpc.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -225,6 +240,12 @@
 				<configuration>
 					<mainClass>dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication</mainClass>
 					<layout>JAR</layout>
+					<addResources>
+						<resource>
+							<directory>src/main/resources</directory>
+							<filtering>true</filtering>
+						</resource>
+					</addResources>
 				</configuration>
 				<executions>
 					<execution>
@@ -245,8 +266,27 @@
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
+							<version>1.18.38</version>
 						</path>
 					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.5.3</version>
+				<configuration>
+					<includes>
+						<include>**/*Test.java</include>
+					</includes>
+					<useModulePath>false</useModulePath>
+					<properties>
+						<property>
+							<name>listener</name>
+							<value>org.junit.platform.launcher.listeners.SummaryGeneratingListener</value>
+						</property>
+					</properties>
 				</configuration>
 			</plugin>
 		</plugins>
@@ -256,10 +296,6 @@
 			<id>maven_central</id>
 			<name>Maven Central</name>
 			<url>https://repo.maven.apache.org/maven2/</url>
-		</repository>
-		<repository>
-			<id>google</id>
-			<url>https://maven.google.com</url>
 		</repository>
 	</repositories>
 </project>

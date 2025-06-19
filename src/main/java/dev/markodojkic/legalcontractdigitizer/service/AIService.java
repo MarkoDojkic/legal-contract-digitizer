@@ -21,14 +21,15 @@ public class AIService {
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	public List<String> extractClauses(String contractText) {
+		//TODO: Fix below with proper DTO and parsing, since this doesn't work
 		PromptTemplate request = PromptTemplate.builder()
 				.template("""
-                Extract all legal clauses from the following contract text.
-                Return the result as a JSON array of clause strings only. Do not add any commentary.
-
-                Contract text:
-                ```{contractText}```
-            """)
+							Extract all legal clauses from this legal contract text. 
+							Return the result as a **JSON array** of clauses (strings). 
+							Do not explain, do not include anything else but the array.
+					
+							{contractText}
+						""")
 				.variables(Map.of("contractText", contractText))
 				.build();
 

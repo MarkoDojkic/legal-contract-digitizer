@@ -8,11 +8,11 @@ spring:
       api-key: ${OPENAI_API_KEY}
 ethereum:
   rpc:
-    url: ${ETH_RPC_URL:https://goerli.infura.io/v3/${INFURA_PROJECT_ID}}
+    url: ${ETH_RPC_URL:https://sepolia.infura.io/v3/${INFURA_PROJECT_ID}}
   private:
-    key: ${ETH_PRIVATE_KEY}
+    key: "${ETH_PRIVATE_KEY}"
   chain:
-    id: ${ETH_CHAIN_ID:5}  # Defaults to Goerli testnet chain id
+    id: ${ETH_CHAIN_ID:11155111}  # Defaults to Sepolia testnet chain id
   gas:
     price: ${ETH_GAS_PRICE:20000000000}  # 20 Gwei (in wei)
     limit: ${ETH_GAS_LIMIT:4500000}

@@ -1,6 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.markodojkic.legalcontractdigitizer.util.FixedGasProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
@@ -140,35 +141,5 @@ public class EthereumService {
 		// Convert receipt object to JSON for client
 		ObjectMapper mapper = new ObjectMapper();
 		return mapper.writeValueAsString(receipt);
-	}
-
-	private static class FixedGasProvider implements ContractGasProvider {
-		private final BigInteger gasPrice;
-		private final BigInteger gasLimit;
-
-		public FixedGasProvider(BigInteger gasPrice, BigInteger gasLimit) {
-			this.gasPrice = gasPrice;
-			this.gasLimit = gasLimit;
-		}
-
-		@Override
-		public BigInteger getGasPrice(String contractFunc) {
-			return gasPrice;
-		}
-
-		@Override
-		public BigInteger getGasPrice() {
-			return gasPrice;
-		}
-
-		@Override
-		public BigInteger getGasLimit(String contractFunc) {
-			return gasLimit;
-		}
-
-		@Override
-		public BigInteger getGasLimit() {
-			return gasLimit;
-		}
 	}
 }

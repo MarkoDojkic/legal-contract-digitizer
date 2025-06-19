@@ -3,6 +3,7 @@ package dev.markodojkic.legalcontractdigitizer.controller;
 import dev.markodojkic.legalcontractdigitizer.dto.*;
 import dev.markodojkic.legalcontractdigitizer.service.ContractServiceImpl;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
+import dev.markodojkic.legalcontractdigitizer.service.FileTextExtractorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,18 +26,16 @@ public class MainController {
 
 	private final ContractServiceImpl contractService;
 	private final EthereumService ethereumService;
+	private final FileTextExtractorService fileTextExtractorService;
 
 	@Operation(summary = "Upload a contract file")
 	@PostMapping("/upload-contract")
 	public ResponseEntity<UploadResponseDTO> uploadContract(@RequestParam("file") MultipartFile file) {
 		try {
-			String text = new Scanner(file.getInputStream(), StandardCharsets.UTF_8)
-					.useDelimiter("\\A").next();
-
-			String contractId = contractService.saveUploadedContract(text);
+			String contractId = contractService.saveUploadedContract(fileTextExtractorService.extractText(file));
 			return ResponseEntity.ok(
 					UploadResponseDTO.builder()
-							.message("Contract uploaded successfully.")
+							.message("Contract uploaded successfully. ID: " + contractId)
 							.build()
 			);
 		} catch (Exception e) {

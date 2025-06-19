@@ -16,13 +16,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ContractStatusWorker {
 
-	private final Firestore db = FirestoreClient.getFirestore();
+	private final Firestore firestore = FirestoreClient.getFirestore();
 	private final EthereumService ethereumService;
 
 	@Scheduled(fixedRate = 30000)
 	public void checkDeployed() {
 		try {
-			QuerySnapshot snaps = db.collection("contracts")
+			QuerySnapshot snaps = firestore.collection("contracts")
 					.whereEqualTo("status", ContractStatus.DEPLOYED.name())
 					.get().get();
 			List<QueryDocumentSnapshot> docs = snaps.getDocuments();
@@ -34,7 +34,7 @@ public class ContractStatusWorker {
 
 				boolean confirmed = ethereumService.isContractConfirmed(addr);
 				if (confirmed) {
-					db.collection("contracts").document(id)
+					firestore.collection("contracts").document(id)
 							.update("status", ContractStatus.CONFIRMED.name());
 					log.info("Contract {} CONFIRMED", id);
 				}

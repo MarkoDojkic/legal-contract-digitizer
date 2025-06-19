@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Firebase Google Sign-In</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+</head>
+<body>
+<h2>Login with Google</h2>
+<button id="googleSignInBtn">Sign in with Google</button>
+
+<p id="message"></p>
+
+<script>
+    // Your Firebase config (replace with your own config from Firebase console)
+    const firebaseConfig = {
+        apiKey: "AIzaSyDkBOxkncIquNnEa5pjbreUtAyBdz8pzGE",
+        authDomain: "legal-contract-digitizer.firebaseapp.com",
+        projectId: "legal-contract-digitizer"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    document.getElementById('googleSignInBtn').addEventListener('click', () => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider)
+            .then(async (result) => {
+                const user = result.user;
+                const idToken = await user.getIdToken();
+
+                // Send ID token to backend
+                fetch('/api/v1/auth/google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken })
+                })
+                    .then(res => {
+                        if (!res.ok) throw new Error('Authentication failed');
+                        return res.text();
+                    })
+                    .then(data => {
+                        document.getElementById('message').innerText = data;
+                    })
+                    .catch(err => {
+                        document.getElementById('message').innerText = err.message;
+                    });
+            })
+            .catch(error => {
+                document.getElementById('message').innerText = 'Google sign-in failed: ' + error.message;
+            });
+    });
+</script>
+</body>
+</html>

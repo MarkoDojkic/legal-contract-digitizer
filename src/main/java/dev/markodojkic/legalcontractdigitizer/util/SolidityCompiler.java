@@ -1,4 +1,4 @@
-package dev.markodojkic.legalcontractdigitizer.service;
+package dev.markodojkic.legalcontractdigitizer.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

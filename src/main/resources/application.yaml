@@ -13,6 +13,3 @@ ethereum:
     key: "${ETH_PRIVATE_KEY}"
   chain:
     id: ${ETH_CHAIN_ID:11155111}  # Defaults to Sepolia testnet chain id
-  gas:
-    price: ${ETH_GAS_PRICE:20000000000}  # 20 Gwei (in wei)
-    limit: ${ETH_GAS_LIMIT:4500000}

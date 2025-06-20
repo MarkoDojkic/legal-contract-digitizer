@@ -6,16 +6,17 @@ import com.google.cloud.firestore.Firestore;
 import com.google.firebase.cloud.FirestoreClient;
 import dev.markodojkic.legalcontractdigitizer.dto.CompilationResultDTO;
 import dev.markodojkic.legalcontractdigitizer.dto.DeploymentStatusResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.util.DigitalizedContract;
-import dev.markodojkic.legalcontractdigitizer.enums.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractDeploymentContext;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.util.SolidityCompiler;
-import dev.markodojkic.legalcontractdigitizer.util.Web3jTypeUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.web3j.abi.datatypes.Type;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,7 +30,6 @@ public class ContractServiceImpl implements IContractService {
 	private final AIService aiService;
 	private final EthereumService ethereumService;
 	private final SolidityCompiler solidityCompiler;
-	private final FileTextExtractorService fileTextExtractorService;
 	private Firestore firestore;
 
 	@PostConstruct
@@ -48,6 +48,29 @@ public class ContractServiceImpl implements IContractService {
 
 		log.info("Contract saved with ID: {} by user: {} with status: {}", contractId, userId, initialStatus);
 		return contractId;
+	}
+
+	@Override
+	public DeploymentStatusResponseDTO getContractStatus(String contractId) {
+		try {
+			DocumentReference docRef = firestore.collection("contracts").document(contractId);
+			var snapshot = docRef.get().get();
+
+			if (!snapshot.exists()) {
+				log.warn("No contract found with ID {}", contractId);
+				throw new IllegalArgumentException("Contract not found");
+			}
+			verifyOwnership(snapshot);
+
+			String status = snapshot.getString("status");
+			String deployedAddress = snapshot.getString("deployedAddress");
+
+			return new DeploymentStatusResponseDTO(contractId, status, deployedAddress);
+
+		} catch (Exception e) {
+			log.error("Failed to fetch contract status for {}", contractId, e);
+			throw new RuntimeException("Failed to retrieve contract status", e);
+		}
 	}
 
 	@Override
@@ -104,7 +127,7 @@ public class ContractServiceImpl implements IContractService {
 				throw new IllegalStateException("No extracted clauses found for contract: " + contractId);
 			}
 
-			String soliditySource = buildSolidityFromClauses(clauses);
+			String soliditySource = aiService.generateSolidityContract(clauses);
 
 			// 🛠 Compile using your existing compiler
 			CompilationResultDTO result = solidityCompiler.compile(soliditySource);
@@ -130,36 +153,20 @@ public class ContractServiceImpl implements IContractService {
 
 	@Override
 	public String deployContractWithParams(String contractId, List<Object> constructorParams) {
-		String userId = firebaseAuthService.getCurrentUserId();
-		if (userId == null) {
-			throw new IllegalStateException("User not authenticated");
-		}
-
-		// Fetch stored contract document by contractId
-		DocumentReference contractRef = firestore.collection("contracts").document(contractId);
 		try {
-			DocumentSnapshot snapshot = contractRef.get().get();
-			if (!snapshot.exists()) {
-				log.warn("No contract found with ID {}", contractId);
-				throw new IllegalArgumentException("Contract not found");
-			}
-			verifyOwnership(snapshot);
+			ContractDeploymentContext context = prepareDeploymentContext(contractId, constructorParams);
 
-			// Assuming your Firestore document has "contractText" or "binary" field with bytecode
-			String contractBinary = snapshot.getString("binary"); // or "contractText" if you store binary there
+			String contractAddress = ethereumService.deployCompiledContract(
+					context.ethContext().contractBinary(),
+					context.ethContext().encodedConstructor()
+			);
 
-			if (contractBinary == null || contractBinary.isEmpty()) {
-				throw new IllegalStateException("Contract binary not found or empty in Firestore");
-			}
+			context.contractRef().update(
+					"status", ContractStatus.DEPLOYED.name(),
+					"deployedAddress", contractAddress
+			);
 
-			List<Type> abiTypes = Web3jTypeUtil.convertToAbiTypes(constructorParams);
-			String contractAddress = ethereumService.deployContractWithConstructor(contractBinary, abiTypes);
-
-			// Optionally update Firestore contract status or add deployed address
-			contractRef.update("status", ContractStatus.DEPLOYED.name(), "deployedAddress", contractAddress);
-
-			log.info("User {} deployed contract {} at address {}", userId, contractId, contractAddress);
-
+			log.info("User {} deployed contract {} at address {}", context.userId(), contractId, contractAddress);
 			return contractAddress;
 
 		} catch (Exception e) {
@@ -169,37 +176,22 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
-	public DeploymentStatusResponseDTO getContractStatus(String contractId) {
+	public BigInteger estimateGasForDeployment(String contractId, List<Object> constructorParams) {
 		try {
-			DocumentReference docRef = firestore.collection("contracts").document(contractId);
-			var snapshot = docRef.get().get();
+			ContractDeploymentContext context = prepareDeploymentContext(contractId, constructorParams);
 
-			if (!snapshot.exists()) {
-				log.warn("No contract found with ID {}", contractId);
-				throw new IllegalArgumentException("Contract not found");
-			}
-			verifyOwnership(snapshot);
+			BigInteger estimatedGas = ethereumService.estimateGasForDeployment(
+					context.ethContext().contractBinary(),
+					context.ethContext().encodedConstructor()
+			);
 
-			String status = snapshot.getString("status");
-			String deployedAddress = snapshot.getString("deployedAddress");
-
-			return new DeploymentStatusResponseDTO(contractId, status, deployedAddress);
+			log.info("Estimated gas for contract {}: {}", contractId, estimatedGas);
+			return estimatedGas;
 
 		} catch (Exception e) {
-			log.error("Failed to fetch contract status for {}", contractId, e);
-			throw new RuntimeException("Failed to retrieve contract status", e);
+			log.error("Gas estimation failed for contract {}: {}", contractId, e.getMessage(), e);
+			throw new RuntimeException("Gas estimation failed", e);
 		}
-	}
-
-	private String buildSolidityFromClauses(List<String> clauses) {
-		StringBuilder sb = new StringBuilder();
-		sb.append("// SPDX-License-Identifier: MIT\n");
-		sb.append("pragma solidity ^0.8.0;\n\n");
-		sb.append("contract LegalContract {\n");
-
-		clauses.forEach(c -> sb.append("\n// ").append(c));
-		sb.append("\n}");
-		return sb.toString();
 	}
 
 	private void verifyOwnership(DocumentSnapshot snapshot) {
@@ -210,4 +202,30 @@ public class ContractServiceImpl implements IContractService {
 			throw new SecurityException("You are not authorized to access this contract.");
 		}
 	}
+
+	private ContractDeploymentContext prepareDeploymentContext(String contractId, List<Object> constructorParams) throws Exception {
+		String userId = firebaseAuthService.getCurrentUserId();
+		if (userId == null) {
+			throw new IllegalStateException("User not authenticated");
+		}
+
+		DocumentReference contractRef = firestore.collection("contracts").document(contractId);
+		DocumentSnapshot snapshot = contractRef.get().get();
+		if (!snapshot.exists()) {
+			log.warn("No contract found with ID {}", contractId);
+			throw new IllegalArgumentException("Contract not found");
+		}
+		verifyOwnership(snapshot);
+
+		String contractBinary = snapshot.getString("binary");
+		if (contractBinary == null || contractBinary.isEmpty()) {
+			throw new IllegalStateException("Contract binary not found or empty in Firestore");
+		}
+
+		// 🔁 Moved Web3 constructor encoding logic to EthereumService
+		EthereumContractContext ethContext = ethereumService.buildDeploymentContext(contractBinary, constructorParams);
+
+		return new ContractDeploymentContext(userId, ethContext, contractRef);
+	}
+
 }

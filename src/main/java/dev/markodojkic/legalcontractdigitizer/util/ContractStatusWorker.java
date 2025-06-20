@@ -2,7 +2,7 @@ package dev.markodojkic.legalcontractdigitizer.util;
 
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
-import dev.markodojkic.legalcontractdigitizer.enums.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

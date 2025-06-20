@@ -9,26 +9,25 @@ import java.util.List;
 
 public class Web3jTypeUtil {
 
-	/**
-	 * Convert a List of Strings and/or BigIntegers to a List of ABI Types.
-	 * You can extend this to support other types as needed.
-	 */
-	public static List<Type> convertToAbiTypes(List<Object> params) {
+	public static List<Type> convertToAbiTypes(List<Object> constructorParams) {
 		List<Type> abiTypes = new ArrayList<>();
 
-		for (Object param : params) {
-			if (param instanceof String) {
-				abiTypes.add(new Utf8String((String) param));
-			} else if (param instanceof Integer) {
-				abiTypes.add(new Uint256(BigInteger.valueOf((Integer) param)));
-			} else if (param instanceof Long) {
-				abiTypes.add(new Uint256(BigInteger.valueOf((Long) param)));
-			} else if (param instanceof BigInteger) {
-				abiTypes.add(new Uint256((BigInteger) param));
-			} else if (param instanceof Boolean) {
-				abiTypes.add(new Bool((Boolean) param));
+		for (Object param : constructorParams) {
+			if (param instanceof String strParam) {
+				if (strParam.matches("^0x[a-fA-F0-9]{40}$")) {
+					// Ethereum address
+					abiTypes.add(new Address(strParam));
+				} else if (strParam.matches("^\\d+$")) {
+					// Numeric string
+					abiTypes.add(new Uint256(new BigInteger(strParam)));
+				} else {
+					// Fallback to string
+					abiTypes.add(new Utf8String(strParam));
+				}
+			} else if (param instanceof Number num) {
+				abiTypes.add(new Uint256(BigInteger.valueOf(num.longValue())));
 			} else {
-				throw new IllegalArgumentException("Unsupported parameter type: " + param.getClass());
+				throw new IllegalArgumentException("Unsupported constructor parameter type: " + param);
 			}
 		}
 

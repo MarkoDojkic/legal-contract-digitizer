@@ -1,13 +1,15 @@
 package dev.markodojkic.legalcontractdigitizer.util;
 
-import com.google.cloud.firestore.*;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.QuerySnapshot;
 import com.google.firebase.cloud.FirestoreClient;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 

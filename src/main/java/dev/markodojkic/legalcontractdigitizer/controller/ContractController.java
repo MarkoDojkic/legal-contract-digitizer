@@ -1,35 +1,33 @@
 package dev.markodojkic.legalcontractdigitizer.controller;
 
-import dev.markodojkic.legalcontractdigitizer.dto.*;
+import dev.markodojkic.legalcontractdigitizer.dto.ClauseExtractionResponseDTO;
+import dev.markodojkic.legalcontractdigitizer.dto.DeploymentRequestDTO;
+import dev.markodojkic.legalcontractdigitizer.dto.DeploymentStatusResponseDTO;
+import dev.markodojkic.legalcontractdigitizer.dto.UploadResponseDTO;
 import dev.markodojkic.legalcontractdigitizer.service.ContractServiceImpl;
-import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
 import dev.markodojkic.legalcontractdigitizer.service.FileTextExtractorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Scanner;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/contracts")
 @RequiredArgsConstructor
-@Tag(name = "Legal Contract Digitizer API", description = "Endpoints for legal contract processing and blockchain deployment")
+@Tag(name = "Contract API", description = "Endpoints for contract processing and deployment")
 @Slf4j
-public class MainController {
+public class ContractController {
 
 	private final ContractServiceImpl contractService;
-	private final EthereumService ethereumService;
 	private final FileTextExtractorService fileTextExtractorService;
 
 	@Operation(summary = "Upload a contract file")
-	@PostMapping("/upload-contract")
+	@PostMapping("/upload")
 	public ResponseEntity<UploadResponseDTO> uploadContract(@RequestParam("file") MultipartFile file) {
 		try {
 			String contractId = contractService.saveUploadedContract(fileTextExtractorService.extractText(file));
@@ -39,9 +37,17 @@ public class MainController {
 							.build()
 			);
 		} catch (Exception e) {
+			log.error("Upload failed", e);
 			return ResponseEntity.internalServerError()
 					.body(UploadResponseDTO.builder().message("Failed to upload contract.").build());
 		}
+	}
+
+	@Operation(summary = "Check contract deployment status")
+	@GetMapping("/status/{id}")
+	public ResponseEntity<DeploymentStatusResponseDTO> getContractStatus(@PathVariable String id) {
+		DeploymentStatusResponseDTO response = contractService.getContractStatus(id);
+		return ResponseEntity.ok(response);
 	}
 
 	@Operation(summary = "Extract legal clauses using LLM")
@@ -76,29 +82,6 @@ public class MainController {
 		} catch (Exception e) {
 			log.error("Contract deployment failed: {}", e.getMessage());
 			return ResponseEntity.status(500).body("Deployment failed: " + e.getMessage());
-		}
-	}
-
-	@Operation(summary = "Check contract deployment status")
-	@GetMapping("/contract-status/{id}")
-	public ResponseEntity<DeploymentStatusResponseDTO> getContractStatus(@PathVariable String id) {
-		DeploymentStatusResponseDTO response = contractService.getContractStatus(id);
-		return ResponseEntity.ok(response);
-	}
-
-	@Operation(summary = "Fetch Ethereum transaction receipt by hash")
-	@GetMapping("/contract-tx/{txHash}")
-	public ResponseEntity<String> getTransactionReceipt(@PathVariable String txHash) {
-		try {
-			String receiptJson = ethereumService.getTransactionReceipt(txHash);
-			if (receiptJson == null) {
-				return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Pending or not found.");
-			}
-			return ResponseEntity.ok(receiptJson);
-		} catch (Exception e) {
-			log.error("Error fetching transaction receipt for {}: {}", txHash, e.getMessage(), e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body("Failed to fetch receipt: " + e.getMessage());
 		}
 	}
 }

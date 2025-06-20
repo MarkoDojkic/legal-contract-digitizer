@@ -4,13 +4,14 @@ import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import dev.markodojkic.legalcontractdigitizer.dto.CompilationResultDTO;
 import dev.markodojkic.legalcontractdigitizer.dto.DeploymentStatusResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.test.TestUtils;
-import dev.markodojkic.legalcontractdigitizer.util.DigitalizedContract;
-import dev.markodojkic.legalcontractdigitizer.enums.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.service.AIService;
 import dev.markodojkic.legalcontractdigitizer.service.ContractServiceImpl;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
 import dev.markodojkic.legalcontractdigitizer.service.FirebaseAuthService;
+import dev.markodojkic.legalcontractdigitizer.test.TestUtils;
 import dev.markodojkic.legalcontractdigitizer.util.SolidityCompiler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -158,9 +159,11 @@ class ContractServiceImplTest {
     }
 
     @Test
-    void generateSolidity_shouldCompileAndStoreSolidity() throws IOException, InterruptedException {
+    void generateSolidity_shouldCompileAndStoreSolidity() throws ExecutionException, InterruptedException, IOException {
         List<String> clauses = List.of("Clause 1", "Clause 2");
-        String expectedSource = """
+
+        // Mock AIService to return solidity source string
+        String expectedSoliditySource = """
                 // SPDX-License-Identifier: MIT
                 pragma solidity ^0.8.0;
 
@@ -170,40 +173,58 @@ class ContractServiceImplTest {
                 // Clause 2
                 }""";
 
+        when(documentSnapshot.get("extractedClauses")).thenReturn(clauses);
+        when(aiService.generateSolidityContract(clauses)).thenReturn(expectedSoliditySource);
+
         CompilationResultDTO mockResult = CompilationResultDTO.builder()
                 .bin("0xabc123")
                 .abi("[{\"type\":\"constructor\"}]")
                 .build();
 
-        when(documentSnapshot.get("extractedClauses")).thenReturn(clauses);
-        when(solidityCompiler.compile(anyString())).thenReturn(mockResult);
+        when(solidityCompiler.compile(expectedSoliditySource)).thenReturn(mockResult);
 
         String solidity = contractService.generateSolidity("contractId");
 
         assertNotNull(solidity);
-        assertTrue(solidity.contains("contract LegalContract"));
+        assertEquals(expectedSoliditySource, solidity);
 
         verify(documentReference).update(argThat(map ->
-                expectedSource.equals(map.get("soliditySource")) &&
+                expectedSoliditySource.equals(map.get("soliditySource")) &&
                         "0xabc123".equals(map.get("binary")) &&
-                        map.get("abi") != null &&
+                        "[{\"type\":\"constructor\"}]".equals(map.get("abi")) &&
                         ContractStatus.SOLIDITY_GENERATED.name().equals(map.get("status"))
         ));
     }
 
     @Test
     void deployContractWithParams_shouldDeployAndUpdateStatus() throws Exception {
-        when(documentSnapshot.getString("binary")).thenReturn("608060...");
-        when(ethereumService.deployContractWithConstructor(eq("608060..."), anyList()))
+        String contractBinary = "608060...";
+
+        // Create a valid EthereumContractContext for mocking
+        EthereumContractContext ethContext = new EthereumContractContext(contractBinary, "encodedConstructorData");
+
+        // Mock firestore document snapshot to return binary
+        when(documentSnapshot.getString("binary")).thenReturn(contractBinary);
+
+        // Mock buildDeploymentContext to return the ethContext when called with correct args
+        when(ethereumService.buildDeploymentContext(eq(contractBinary), anyList()))
+                .thenReturn(ethContext);
+
+        // Mock deployCompiledContract to simulate deployment
+        when(ethereumService.deployCompiledContract(eq(contractBinary), anyString()))
                 .thenReturn("0xContractAddress");
 
+        // Call the method under test
         String deployedAddress = contractService.deployContractWithParams("contractId", List.of("param"));
 
+        // Assert returned contract address matches mocked deployment
         assertEquals("0xContractAddress", deployedAddress);
-        verify(documentReference, times(1)).update(
-				"status", ContractStatus.DEPLOYED.name(),
-				"deployedAddress", "0xContractAddress"
-		);
+
+        // Verify that Firestore document is updated accordingly
+        verify(documentReference).update(
+                "status", ContractStatus.DEPLOYED.name(),
+                "deployedAddress", "0xContractAddress"
+        );
     }
 
     @Test

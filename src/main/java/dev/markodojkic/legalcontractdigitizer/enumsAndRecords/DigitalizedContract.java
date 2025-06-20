@@ -1,4 +1,4 @@
-package dev.markodojkic.legalcontractdigitizer.util;
+package dev.markodojkic.legalcontractdigitizer.enumsAndRecords;
 
 public record DigitalizedContract(
         String id,

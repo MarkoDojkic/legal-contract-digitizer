@@ -1,4 +1,4 @@
-package dev.markodojkic.legalcontractdigitizer.enums;
+package dev.markodojkic.legalcontractdigitizer.enumsAndRecords;
 
 public enum ContractStatus {
 	UPLOADED,

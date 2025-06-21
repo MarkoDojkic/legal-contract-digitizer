@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<BorderPane fx:id="borderPane" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="dev.markodojkic.legalcontractdigitizer.javafx.JavaFXWindowController"
+            styleClass="main-window">
+
+    <!-- Title Bar -->
+    <top>
+        <HBox fx:id="titleBar" spacing="10" styleClass="title-bar" alignment="CENTER_LEFT">
+            <Label fx:id="windowTitle" styleClass="title-label" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Button fx:id="minimizeBtn" text="–" styleClass="window-btn" />
+            <Button fx:id="closeBtn" text="×" styleClass="window-btn" />
+        </HBox>
+    </top>
+
+    <!-- Dynamic Content Area -->
+    <center>
+        <StackPane fx:id="contentArea" styleClass="content-area" />
+    </center>
+
+    <!-- Status Bar -->
+    <bottom>
+        <HBox fx:id="statusBar" styleClass="status-bar" alignment="CENTER_RIGHT">
+            <Label text="© Марко Дојкић 2025" styleClass="status-label"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

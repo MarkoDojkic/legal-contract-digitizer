@@ -1,0 +1,53 @@
+/* login-pane styles the whole StackPane */
+.login-pane {
+    -fx-background-color: linear-gradient(to bottom right, #1e2a38, #283f5a);
+    -fx-padding: 40;
+}
+
+/* VBox inside login-pane */
+.login-pane > VBox {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-padding: 30;
+    -fx-spacing: 15;
+    -fx-alignment: center;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 10, 0, 0, 5);
+}
+
+/* Label with styleClass login-title */
+.login-title {
+    -fx-text-fill: white;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Button inside VBox */
+.login-pane Button {
+    -fx-background-color: #4285F4; /* Google blue */
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 10 20;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 4, 0, 0, 1);
+    -fx-transition: all 0.3s ease;
+}
+
+.login-pane Button:hover {
+    -fx-background-color: #357ae8;
+}
+
+.login-pane Button:pressed {
+    -fx-background-color: #2a65c7;
+}
+
+.login-message {
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    -fx-padding: 10 0;
+}

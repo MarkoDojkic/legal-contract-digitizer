@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<StackPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
+           styleClass="login-pane">
+
+    <VBox spacing="15" alignment="CENTER">
+        <Label text="Login" styleClass="login-title" />
+        <Button text="Login with Google" onAction="#onLoginButtonClicked" fx:id="loginButton"/>
+        <Label fx:id="messageLabel" text="Please log in to continue." styleClass="login-message" wrapText="true" />
+    </VBox>
+
+</StackPane>

@@ -1,0 +1,89 @@
+/* Window background and border */
+.main-window {
+    -fx-background-color: #0B0F1A; /* very dark blue-black */
+    -fx-border-color: #0AC9FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-font-family: "Orbitron", "Consolas", monospace;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, #0AC9FF44, 10, 0, 0, 0);
+}
+
+/* Title bar */
+.title-bar {
+    -fx-background-color: linear-gradient(to bottom, #0AC9FF, #0576B9);
+    -fx-border-color: #0AC9FF;
+    -fx-border-width: 0 0 2px 0;
+    -fx-min-height: 40px;
+    -fx-pref-height: 40px;
+    -fx-alignment: center-left;
+    -fx-padding: 0 10 0 10;
+    -fx-effect: dropshadow(gaussian, #0AC9FF88, 8, 0, 0, 1);
+}
+
+/* Window title label */
+.title-label {
+    -fx-text-fill: #E0FFFF; /* pale cyan */
+    -fx-font-size: 16px;
+    -fx-letter-spacing: 1.5px;
+    -fx-font-weight: 900;
+}
+
+/* Window buttons */
+.window-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #0AC9FF;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 8 0 8;
+    -fx-cursor: hand;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-effect: dropshadow(gaussian, #0AC9FF99, 4, 0, 0, 0);
+}
+.window-btn:hover {
+    -fx-background-color: #0AC9FF44;
+    -fx-text-fill: #E0FFFF;
+}
+
+/* Content area */
+.content-area {
+    -fx-background-color: #111A2B;
+    -fx-background-image: repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 14px,
+            #0AC9FF11 15px,
+            transparent 16px
+    ), repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 14px,
+            #0AC9FF11 15px,
+            transparent 16px
+    );
+    -fx-padding: 20;
+    -fx-border-color: #0AC9FF33;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+}
+
+/* Status bar */
+.status-bar {
+    -fx-background-color: linear-gradient(to top, #0576B9, #0AC9FF);
+    -fx-border-color: #0AC9FF;
+    -fx-border-width: 2px 0 0 0;
+    -fx-min-height: 30px;
+    -fx-pref-height: 30px;
+    -fx-padding: 0 10 0 10;
+    -fx-effect: dropshadow(gaussian, #0AC9FF88, 6, 0, 0, -1);
+}
+
+/* Status label */
+.status-label {
+    -fx-text-fill: #A3E8FF;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-letter-spacing: 0.5px;
+}

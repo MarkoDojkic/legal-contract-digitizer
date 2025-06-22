@@ -17,6 +17,7 @@ public class JavaFXWindowController {
 
     @FXML private StackPane contentArea;
     @FXML private Button minimizeBtn;
+    @Getter
     @FXML private Button closeBtn;
     @FXML private Label windowTitle;
     @FXML private HBox titleBar;

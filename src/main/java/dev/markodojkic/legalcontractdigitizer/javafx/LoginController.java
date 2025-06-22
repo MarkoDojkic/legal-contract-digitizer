@@ -2,33 +2,36 @@ package dev.markodojkic.legalcontractdigitizer.javafx;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.WebViewWindow;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
-import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.web.WebEngine;
-import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Objects;
 
 @Component
-public class LoginController {
+public class LoginController implements WindowAwareController {
+    private JavaFXWindowController windowController;
 
     private final Integer serverPort;
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
     private final WindowLauncher windowLauncher;
+    private final ApplicationContext applicationContext;
 
     @Getter
     private String authUrl;
@@ -37,7 +40,8 @@ public class LoginController {
                            @Value("${google.client.id}") String clientId,
                            @Value("${google.client.secret}") String clientSecret,
                            @Value("${google.redirect-uri}") String redirectUri,
-                           @Autowired WindowLauncher windowLauncher) {
+                           @Autowired WindowLauncher windowLauncher,
+                           @Autowired ApplicationContext applicationContext) {
         this.serverPort = serverPort;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
@@ -45,46 +49,45 @@ public class LoginController {
         this.authUrl = String.format("https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid%%20email%%20profile",
                 clientId, redirectUri);
         this.windowLauncher = windowLauncher;
+        this.applicationContext = applicationContext;
     }
     private static final String TOKEN_URL = "https://oauth2.googleapis.com/token";
 
     private final OkHttpClient httpClient = new OkHttpClient();
 
-    private Stage loginStage;
+    private JavaFXWindowController googleLoginController;
 
     @FXML private Button loginButton;
     @FXML private Label messageLabel;
 
     @FXML
     public void onLoginButtonClicked() {
-        WebView webView = new WebView();
-        WebEngine webEngine = webView.getEngine();
+        WebViewWindow googleLoginWindow = windowLauncher.launchWebViewWindow(
+                new Stage(),
+                "Google Sign-In",
+                600,
+                600,
+                authUrl
+        );
 
-        // Open new stage to show Google login
-        loginStage = new Stage();
-        loginStage.setTitle("Google Sign-In");
-        loginStage.setScene(new Scene(webView, 600, 600));
-        loginStage.show();
+        googleLoginController = googleLoginWindow.controller(); // save this reference
 
-        // Listen to URL changes to detect redirect with code
-        webEngine.locationProperty().addListener((obs, oldLocation, newLocation) -> {
-            if (newLocation.startsWith(redirectUri)) {
-                // Extract the "code" query param
-                String code = extractQueryParam(newLocation, "code");
+        // Attach listener to *that* WebView
+        googleLoginWindow.engine().locationProperty().addListener((obs, oldLoc, newLoc) -> {
+            if (newLoc != null && newLoc.contains("code=")) {
+                String code = extractQueryParam(newLoc, "code");
                 if (code != null) {
-                    // Exchange code for ID token asynchronously
                     exchangeCodeForIdToken(code);
-                } else {
-                    String error = extractQueryParam(newLocation, "error");
-                    messageLabel.setText("Login error: " + (error != null ? error : "Unknown"));
-                    loginStage.close();
+                    closeGoogleLoginWindow();
                 }
+            } else if (newLoc.contains("error=")) {
+                String error = extractQueryParam(newLoc, "error");
+                updateMessageLabel("Login error: " + (error != null ? error : "Unknown"));
+                closeGoogleLoginWindow();
             }
         });
-
-        // Load Google OAuth URL
-        webEngine.load(getAuthUrl());
     }
+
 
     private String extractQueryParam(String url, String param) {
         try {
@@ -123,14 +126,14 @@ public class LoginController {
             @Override
             public void onFailure(Call call, IOException e) {
                 updateMessageLabel("Failed to get token: " + e.getMessage());
-                closeLoginStage();
+                closeGoogleLoginWindow();
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     updateMessageLabel("Token request failed: " + response.message());
-                    closeLoginStage();
+                    closeGoogleLoginWindow();
                     return;
                 }
                 String responseBody = Objects.requireNonNull(response.body()).string();
@@ -139,14 +142,14 @@ public class LoginController {
                 String idToken = json.has("id_token") ? json.get("id_token").getAsString() : null;
                 if (idToken == null || idToken.isEmpty()) {
                     updateMessageLabel("ID token missing in response");
-                    closeLoginStage();
+                    closeGoogleLoginWindow();
                     return;
                 }
 
                 // Send ID token to backend for verification
                 sendIdTokenToBackend(idToken);
 
-                closeLoginStage();
+                closeGoogleLoginWindow();
             }
         });
     }
@@ -177,19 +180,34 @@ public class LoginController {
                     updateMessageLabel("Backend auth error: " + response.message());
                 } else {
                     Platform.runLater(() -> {
-                        Stage welcomeStage = new Stage();
+                        WelcomeController welcomeController = applicationContext.getBean(WelcomeController.class);
+                        JsonObject json;
+                        try {
+                            json = JsonParser.parseString(response.body().string()).getAsJsonObject();
+                        } catch (IOException e) {
+                            updateMessageLabel("Backend auth error: " + e.getLocalizedMessage());
+                            return;
+                        }
+
+                        welcomeController.setUserData(Map.of(
+                                "name", json.get("name").getAsString(),
+                                "email", json.get("email").getAsString(),
+                                "userId", json.get("userId").getAsString()
+                        ));
+
+
                         windowLauncher.launchWindow(
-                                welcomeStage,
+                                new Stage(),
                                 "Welcome",
                                 600,
                                 400,
                                 "/layout/welcome.fxml",
-                                "/static/style/welcome.css"
+                                Objects.requireNonNull(getClass().getResource("/static/style/welcome.css")).toExternalForm(),
+                                welcomeController
                         );
-
-                        if (loginStage != null) {
-                            loginStage.close();
-                        }
+                        updateMessageLabel("Login successful");
+                        closeGoogleLoginWindow();
+                        windowController.getCloseBtn().fire();
                     });
                 }
             }
@@ -200,10 +218,14 @@ public class LoginController {
         javafx.application.Platform.runLater(() -> messageLabel.setText(message));
     }
 
-    private void closeLoginStage() {
-        if (loginStage != null) {
-            javafx.application.Platform.runLater(() -> loginStage.close());
+    private void closeGoogleLoginWindow() {
+        if (googleLoginController != null) {
+            Platform.runLater(() -> googleLoginController.getCloseBtn().fire());
         }
     }
 
+    @Override
+    public void setWindowController(JavaFXWindowController controller) {
+        this.windowController = controller;
+    }
 }

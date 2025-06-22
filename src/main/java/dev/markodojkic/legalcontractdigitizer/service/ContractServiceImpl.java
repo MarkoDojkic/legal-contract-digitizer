@@ -196,7 +196,7 @@ public class ContractServiceImpl implements IContractService {
 
 	private void verifyOwnership(DocumentSnapshot snapshot) {
 		String contractUserId = snapshot.getString("userId");
-		String currentUserId = firebaseAuthService.getCurrentUserId();
+		String currentUserId = firebaseAuthService.getCurrentUserId(); //TODO: Switch to OAuthService check
 
 		if (contractUserId == null || !contractUserId.equals(currentUserId)) {
 			throw new SecurityException("You are not authorized to access this contract.");

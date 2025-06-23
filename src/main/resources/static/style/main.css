@@ -1,0 +1,55 @@
+.main-root {
+    -fx-padding: 40;
+    -fx-background-color: white;
+}
+
+.main-title {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+}
+
+.main-label {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333;
+}
+
+.table-row-cell.UPLOADED {
+    -fx-background-color: #FFE4B5; /* light orange */
+}
+
+.table-row-cell.CLAUSES_EXTRACTED {
+    -fx-background-color: #ADD8E6; /* light blue */
+}
+
+.table-row-cell.SOLIDITY_GENERATED {
+    -fx-background-color: #90EE90; /* light green */
+}
+
+.table-row-cell.DEPLOYED {
+    -fx-background-color: #FFD700; /* gold */
+}
+
+.table-row-cell.CONFIRMED {
+    -fx-background-color: #32CD32; /* lime green */
+}
+
+.table-cell.UPLOADED {
+    -fx-text-fill: #A0522D; /* sienna */
+}
+
+.table-cell.CLAUSES_EXTRACTED {
+    -fx-text-fill: #1E90FF; /* dodger blue */
+}
+
+.table-cell.SOLIDITY_GENERATED {
+    -fx-text-fill: #006400; /* dark green */
+}
+
+.table-cell.DEPLOYED {
+    -fx-text-fill: #B8860B; /* dark goldenrod */
+}
+
+.table-cell.CONFIRMED {
+    -fx-text-fill: #228B22; /* forest green */
+}

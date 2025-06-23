@@ -4,7 +4,7 @@
 <?import javafx.scene.control.*?>
 
 <BorderPane fx:id="borderPane" xmlns:fx="http://javafx.com/fxml"
-            fx:controller="dev.markodojkic.legalcontractdigitizer.javafx.JavaFXWindowController"
+            fx:controller="dev.markodojkic.legalcontractdigitizer.javafx.uiController.JavaFXWindowController"
             styleClass="main-window">
 
     <!-- Title Bar -->

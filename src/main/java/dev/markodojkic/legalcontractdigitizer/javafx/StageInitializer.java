@@ -1,6 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer.javafx;
 
 import dev.markodojkic.legalcontractdigitizer.LCDJavaFxUIApplication.StageReadyEvent;
+import dev.markodojkic.legalcontractdigitizer.javafx.uiController.LoginController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
@@ -17,6 +18,6 @@ public class StageInitializer implements ApplicationListener<StageReadyEvent> {
 
     @Override
     public void onApplicationEvent(StageReadyEvent event) {
-        windowLauncher.launchWindow(event.getStage(), "Access Required", 350, 450, "/layout/login.fxml", Objects.requireNonNull(getClass().getResource("/static/style/login.css")).toExternalForm(), applicationContext.getBean(LoginController.class));
+        windowLauncher.launchWindow(event.getStage(), "Legal contract digitizer - Login window", 500, 500, "/layout/login.fxml", Objects.requireNonNull(getClass().getResource("/static/style/login.css")).toExternalForm(), applicationContext.getBean(LoginController.class));
     }
 }

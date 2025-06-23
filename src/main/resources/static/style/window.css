@@ -47,22 +47,10 @@
     -fx-text-fill: #E0FFFF;
 }
 
-/* Content area */
 .content-area {
     -fx-background-color: #111A2B;
-    -fx-background-image: repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 14px,
-            #0AC9FF11 15px,
-            transparent 16px
-    ), repeating-linear-gradient(
-            90deg,
-            transparent,
-            transparent 14px,
-            #0AC9FF11 15px,
-            transparent 16px
-    );
+    -fx-background-image: url("/static/images/grid-pattern.png");
+    -fx-background-repeat: repeat;
     -fx-padding: 20;
     -fx-border-color: #0AC9FF33;
     -fx-border-width: 1px;
@@ -86,4 +74,40 @@
     -fx-font-size: 13px;
     -fx-font-weight: 600;
     -fx-letter-spacing: 0.5px;
+}
+
+.button {
+    -fx-font-size: 12px;
+    -fx-padding: 4 8 4 8;
+    -fx-cursor: hand;
+}
+
+.btn-primary {
+    -fx-background-color: #0AC9FF;
+    -fx-text-fill: white;
+    -fx-background-radius: 4px;
+}
+
+.btn-primary:hover {
+    -fx-background-color: #07a7cc;
+}
+
+.btn-action {
+    -fx-background-color: #339933;
+    -fx-text-fill: white;
+    -fx-background-radius: 4px;
+}
+
+.btn-action:hover {
+    -fx-background-color: #267326;
+}
+
+.btn-info {
+    -fx-background-color: #5bc0de;
+    -fx-text-fill: white;
+    -fx-background-radius: 4px;
+}
+
+.btn-info:hover {
+    -fx-background-color: #31b0d5;
 }

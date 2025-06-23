@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.Label?>
+
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.control.Button?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
+      alignment="CENTER" spacing="20" style="-fx-padding: 40; -fx-background-color: white; -fx-border-radius: 10; -fx-background-radius: 10;">
+
+    <Label text="🎉 Welcome!" style="-fx-font-size: 24px; -fx-font-weight: bold;" />
+    <Label fx:id="nameLabel" styleClass="main-label"/>
+    <Label fx:id="emailLabel" styleClass="main-label"/>
+    <Label fx:id="userIdLabel" styleClass="main-label"/>
+
+    <HBox spacing="40" alignment="CENTER">
+        <Button text="Upload new contract" fx:id="uploadBtn"/>
+        <Button text="Refresh List" fx:id="refreshBtn"/>
+        <Button text="Logout" fx:id="logoutBtn"/>
+    </HBox>
+
+    <TableView fx:id="contractsTable" prefHeight="600" prefWidth="1400">
+        <columns>
+            <TableColumn fx:id="idCol" text="Contract ID" prefWidth="340" />
+            <TableColumn fx:id="actionCol" text="Actions" prefWidth="260" />
+            <TableColumn fx:id="deploymentAddressCol" text="Blockchain address" prefWidth="500" />
+            <TableColumn fx:id="statusCol" text="Status" prefWidth="85"/>
+        </columns>
+    </TableView>
+
+</VBox>

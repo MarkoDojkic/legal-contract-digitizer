@@ -1,0 +1,26 @@
+/* VBox container */
+.vbox {
+    -fx-padding: 20;
+    -fx-background-color: #f5f5f5;
+    -fx-spacing: 10;
+}
+
+/* ListView styling */
+.list-view {
+    -fx-background-color: white;
+    -fx-border-color: #ccc;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+/* ListView cells */
+.list-cell {
+    -fx-padding: 8 10;
+    -fx-font-size: 14px;
+    -fx-text-fill: #34495e;
+}
+
+.list-cell:selected {
+    -fx-background-color: #2980b9;
+    -fx-text-fill: white;
+}

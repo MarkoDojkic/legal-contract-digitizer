@@ -19,7 +19,7 @@ public class WindowAnimator {
 
     public static void openWindow(Stage stage, HBox titleBar, HBox statusBar, StackPane contentArea) {
         stage.show();
-        new AudioClip(new File("src/main/resources/audio/openWindow.wav").toURI().toString()).play();
+        new AudioClip(new File("src/main/resources/static/audio/openWindow.wav").toURI().toString()).play();
 
         double targetHeight = titleBar.getHeight() + contentArea.getHeight() + statusBar.getHeight(); // Final stage height
 
@@ -65,7 +65,7 @@ public class WindowAnimator {
     }
 
     public static void closeWindow(Stage stage, HBox titleBar, HBox statusBar, StackPane contentArea) {
-        new AudioClip(new File("src/main/resources/audio/closeWindow.wav").toURI().toString()).play();
+        new AudioClip(new File("src/main/resources/static/audio/closeWindow.wav").toURI().toString()).play();
         double currentHeight = stage.getHeight();
         double titleBarHeight = titleBar.getHeight() > 0 ? titleBar.getHeight() : 40;
         double statusBarHeight = statusBar.getHeight() > 0 ? statusBar.getHeight() : 30;

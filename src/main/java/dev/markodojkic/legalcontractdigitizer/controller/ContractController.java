@@ -1,9 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer.controller;
 
-import dev.markodojkic.legalcontractdigitizer.dto.ClauseExtractionResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.DeploymentRequestDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.DeploymentStatusResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.UploadResponseDTO;
+import dev.markodojkic.legalcontractdigitizer.dto.*;
+import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.service.ContractServiceImpl;
 import dev.markodojkic.legalcontractdigitizer.service.FileTextExtractorService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,11 +41,18 @@ public class ContractController {
 		}
 	}
 
-	@Operation(summary = "Check contract deployment status")
-	@GetMapping("/status/{id}")
-	public ResponseEntity<DeploymentStatusResponseDTO> getContractStatus(@PathVariable String id) {
-		DeploymentStatusResponseDTO response = contractService.getContractStatus(id);
-		return ResponseEntity.ok(response);
+	@Operation(summary = "List all contracts for the authenticated user")
+	@GetMapping("/list")
+	public ResponseEntity<List<DigitalizedContract>> listUserContracts(@RequestParam String userId) {
+		List<DigitalizedContract> contracts = contractService.listContractsForUser(userId);
+		return ResponseEntity.ok(contracts);
+	}
+
+
+	@Operation(summary = "Get contract")
+	@GetMapping("/{id}")
+	public ResponseEntity<DigitalizedContract> getContract(@PathVariable String id) {
+		return ResponseEntity.ok(contractService.getContract(id));
 	}
 
 	@Operation(summary = "Extract legal clauses using LLM")

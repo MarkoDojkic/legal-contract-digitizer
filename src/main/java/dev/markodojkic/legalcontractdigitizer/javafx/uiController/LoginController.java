@@ -1,15 +1,17 @@
-package dev.markodojkic.legalcontractdigitizer.javafx;
+package dev.markodojkic.legalcontractdigitizer.javafx.uiController;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.WebViewWindow;
+import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.Setter;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,9 +23,12 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
+import java.util.prefs.Preferences;
 
 @Component
 public class LoginController implements WindowAwareController {
+    @Setter
+    @Getter
     private JavaFXWindowController windowController;
 
     private final Integer serverPort;
@@ -57,35 +62,17 @@ public class LoginController implements WindowAwareController {
 
     private JavaFXWindowController googleLoginController;
 
+    Preferences prefs = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
+
     @FXML private Button loginButton;
     @FXML private Label messageLabel;
 
     @FXML
     public void onLoginButtonClicked() {
-        WebViewWindow googleLoginWindow = windowLauncher.launchWebViewWindow(
-                new Stage(),
-                "Google Sign-In",
-                600,
-                600,
-                authUrl
-        );
-
-        googleLoginController = googleLoginWindow.controller(); // save this reference
-
-        // Attach listener to *that* WebView
-        googleLoginWindow.engine().locationProperty().addListener((obs, oldLoc, newLoc) -> {
-            if (newLoc != null && newLoc.contains("code=")) {
-                String code = extractQueryParam(newLoc, "code");
-                if (code != null) {
-                    exchangeCodeForIdToken(code);
-                    closeGoogleLoginWindow();
-                }
-            } else if (newLoc.contains("error=")) {
-                String error = extractQueryParam(newLoc, "error");
-                updateMessageLabel("Login error: " + (error != null ? error : "Unknown"));
-                closeGoogleLoginWindow();
-            }
-        });
+        String cachedToken = prefs.get("idToken", null);
+        if (cachedToken != null) {
+            sendIdTokenToBackend(cachedToken, true);
+        } else launchGoogleSignInFlow();
     }
 
 
@@ -126,14 +113,12 @@ public class LoginController implements WindowAwareController {
             @Override
             public void onFailure(Call call, IOException e) {
                 updateMessageLabel("Failed to get token: " + e.getMessage());
-                closeGoogleLoginWindow();
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     updateMessageLabel("Token request failed: " + response.message());
-                    closeGoogleLoginWindow();
                     return;
                 }
                 String responseBody = Objects.requireNonNull(response.body()).string();
@@ -142,19 +127,16 @@ public class LoginController implements WindowAwareController {
                 String idToken = json.has("id_token") ? json.get("id_token").getAsString() : null;
                 if (idToken == null || idToken.isEmpty()) {
                     updateMessageLabel("ID token missing in response");
-                    closeGoogleLoginWindow();
                     return;
                 }
 
                 // Send ID token to backend for verification
-                sendIdTokenToBackend(idToken);
-
-                closeGoogleLoginWindow();
+                sendIdTokenToBackend(idToken, false);
             }
         });
     }
 
-    private void sendIdTokenToBackend(String idToken) {
+    private void sendIdTokenToBackend(String idToken, boolean fromCache) {
         JsonObject jsonBody = new JsonObject();
         jsonBody.addProperty("idToken", idToken);
 
@@ -171,16 +153,27 @@ public class LoginController implements WindowAwareController {
         httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                updateMessageLabel("Backend auth failed: " + e.getMessage());
+                if (fromCache) {
+                    // Clear corrupted or expired cached token
+                    prefs.remove("idToken");
+                    Platform.runLater(() -> launchGoogleSignInFlow());
+                } else {
+                    updateMessageLabel("Backend auth failed: " + e.getMessage());
+                }
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    updateMessageLabel("Backend auth error: " + response.message());
+                    if (fromCache) {
+                        prefs.remove("idToken");
+                        Platform.runLater(() -> launchGoogleSignInFlow());
+                    } else {
+                        updateMessageLabel("Backend auth error: " + response.message());
+                    }
                 } else {
                     Platform.runLater(() -> {
-                        WelcomeController welcomeController = applicationContext.getBean(WelcomeController.class);
+                        MainController mainController = applicationContext.getBean(MainController.class);
                         JsonObject json;
                         try {
                             json = JsonParser.parseString(response.body().string()).getAsJsonObject();
@@ -189,24 +182,28 @@ public class LoginController implements WindowAwareController {
                             return;
                         }
 
-                        welcomeController.setUserData(Map.of(
+                        mainController.setUserData(Map.of(
                                 "name", json.get("name").getAsString(),
                                 "email", json.get("email").getAsString(),
-                                "userId", json.get("userId").getAsString()
+                                "userId", json.get("userId").getAsString(),
+                                "idToken", idToken
                         ));
 
+                        prefs.put("name", json.get("name").getAsString());
+                        prefs.put("email", json.get("email").getAsString());
+                        prefs.put("userId", json.get("userId").getAsString());
+                        prefs.put("idToken", idToken);
 
                         windowLauncher.launchWindow(
                                 new Stage(),
-                                "Welcome",
-                                600,
-                                400,
-                                "/layout/welcome.fxml",
-                                Objects.requireNonNull(getClass().getResource("/static/style/welcome.css")).toExternalForm(),
-                                welcomeController
+                                "Legal contract digitizer - Main window",
+                                1280,
+                                1024,
+                                "/layout/main.fxml",
+                                Objects.requireNonNull(getClass().getResource("/static/style/main.css")).toExternalForm(),
+                                mainController
                         );
                         updateMessageLabel("Login successful");
-                        closeGoogleLoginWindow();
                         windowController.getCloseBtn().fire();
                     });
                 }
@@ -214,18 +211,38 @@ public class LoginController implements WindowAwareController {
         });
     }
 
+    private void launchGoogleSignInFlow() {
+        WebViewWindow googleLoginWindow = windowLauncher.launchWebViewWindow(
+                new Stage(),
+                "Google Sign-In",
+                600,
+                600,
+                authUrl
+        );
+
+        googleLoginController = googleLoginWindow.controller(); // save this reference
+
+        // Attach listener to *that* WebView
+        googleLoginWindow.engine().locationProperty().addListener((obs, oldLoc, newLoc) -> {
+            if (newLoc != null && newLoc.contains("code=")) {
+                String code = extractQueryParam(newLoc, "code");
+                if (code != null) exchangeCodeForIdToken(code);
+
+                if (googleLoginController != null) {
+                    Platform.runLater(() -> googleLoginController.getCloseBtn().fire());
+                }
+            } else if (newLoc.contains("error=")) {
+                String error = extractQueryParam(newLoc, "error");
+                updateMessageLabel("Login error: " + (error != null ? error : "Unknown"));
+
+                if (googleLoginController != null) {
+                    Platform.runLater(() -> googleLoginController.getCloseBtn().fire());
+                }
+            }
+        });
+    }
+
     private void updateMessageLabel(String message) {
         javafx.application.Platform.runLater(() -> messageLabel.setText(message));
-    }
-
-    private void closeGoogleLoginWindow() {
-        if (googleLoginController != null) {
-            Platform.runLater(() -> googleLoginController.getCloseBtn().fire());
-        }
-    }
-
-    @Override
-    public void setWindowController(JavaFXWindowController controller) {
-        this.windowController = controller;
     }
 }

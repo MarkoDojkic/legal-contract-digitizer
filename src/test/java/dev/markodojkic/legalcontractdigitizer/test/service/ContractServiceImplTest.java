@@ -3,14 +3,13 @@ package dev.markodojkic.legalcontractdigitizer.test.service;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import dev.markodojkic.legalcontractdigitizer.dto.CompilationResultDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.DeploymentStatusResponseDTO;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.service.AIService;
 import dev.markodojkic.legalcontractdigitizer.service.ContractServiceImpl;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
-import dev.markodojkic.legalcontractdigitizer.service.FirebaseAuthService;
+import dev.markodojkic.legalcontractdigitizer.service.TokenAuthService;
 import dev.markodojkic.legalcontractdigitizer.test.TestUtils;
 import dev.markodojkic.legalcontractdigitizer.util.SolidityCompiler;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +32,7 @@ class ContractServiceImplTest {
     private ContractServiceImpl contractService;
 
     @Mock
-    private FirebaseAuthService firebaseAuthService;
+    private TokenAuthService authService;
     @Mock
     private AIService aiService;
     @Mock
@@ -56,7 +55,7 @@ class ContractServiceImplTest {
 
     @BeforeEach
     void setUp() throws ExecutionException, InterruptedException {
-        Mockito.reset(firebaseAuthService, aiService, ethereumService, solidityCompiler,
+        Mockito.reset(authService, aiService, ethereumService, solidityCompiler,
                 firestore, collectionReference, documentReference, documentSnapshot, apiFuture, writeResultApiFuture);
         MockitoAnnotations.openMocks(this);
 
@@ -70,14 +69,14 @@ class ContractServiceImplTest {
         lenient().when(writeResultApiFuture.get()).thenReturn(mock(WriteResult.class));
 
         // Inject mocks into the service
-        TestUtils.setField(contractService, "firebaseAuthService", firebaseAuthService);
+        TestUtils.setField(contractService, "authService", authService);
         TestUtils.setField(contractService, "aiService", aiService);
         TestUtils.setField(contractService, "ethereumService", ethereumService);
         TestUtils.setField(contractService, "solidityCompiler", solidityCompiler);
         TestUtils.setField(contractService, "firestore", firestore);
 
         // Common auth
-        lenient().when(firebaseAuthService.getCurrentUserId()).thenReturn("user123");
+        lenient().when(authService.getCurrentUserId()).thenReturn("user123");
         lenient().when(documentSnapshot.getString("userId")).thenReturn("user123");
     }
 
@@ -94,38 +93,6 @@ class ContractServiceImplTest {
         assertEquals(contractText, captured.contractText());
         assertEquals("user123", captured.userId());
         assertEquals(ContractStatus.UPLOADED.name(), captured.status());
-	}
-
-    @Test
-    void getContractStatus_shouldReturnStatus() {
-		when(documentSnapshot.getString("status")).thenReturn(ContractStatus.UPLOADED.name());
-
-		DeploymentStatusResponseDTO status = contractService.getContractStatus("contractId");
-
-        assertNotNull(status);
-        assertEquals("contractId", status.getContractId());
-		assertEquals(ContractStatus.UPLOADED.name(), status.getStatus());
-		verify(documentReference).get();
-	}
-
-    @Test
-    void getContractStatus_shouldThrowIfContractNotFound() {
-		when(documentSnapshot.exists()).thenReturn(false);
-
-		RuntimeException ex = assertThrows(RuntimeException.class,
-				() -> contractService.getContractStatus("missingId"));
-
-		assertTrue(ex.getCause().getMessage().contains("Contract not found"));
-	}
-
-    @Test
-    void getContractStatus_shouldThrowIfUserIsNotOwner() {
-		when(documentSnapshot.getString("userId")).thenReturn("otherUser");
-
-		RuntimeException ex = assertThrows(RuntimeException.class,
-				() -> contractService.getContractStatus("contractId"));
-
-		assertTrue(ex.getCause().getMessage().contains("not authorized"));
 	}
 
     @Test

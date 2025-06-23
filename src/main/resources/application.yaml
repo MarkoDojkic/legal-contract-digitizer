@@ -13,6 +13,8 @@ ethereum:
     key: "${ETH_PRIVATE_KEY}"
   chain:
     id: ${ETH_CHAIN_ID:11155111}  # Defaults to Sepolia testnet chain id
+  etherscan:
+    url: ${ETH_ETHERSCAN_URL:https://sepolia.etherscan.io}
 google:
   client:
     id: ${GOOGLE_CLIENT_ID}

@@ -1,11 +1,9 @@
 package dev.markodojkic.legalcontractdigitizer.service;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import dev.markodojkic.legalcontractdigitizer.dto.CompilationResultDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.DeploymentStatusResponseDTO;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractDeploymentContext;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
@@ -17,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,7 +25,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ContractServiceImpl implements IContractService {
 
-	private final FirebaseAuthService firebaseAuthService;
+	private final TokenAuthService authService;
 	private final AIService aiService;
 	private final EthereumService ethereumService;
 	private final SolidityCompiler solidityCompiler;
@@ -39,19 +38,61 @@ public class ContractServiceImpl implements IContractService {
 
 	@Override
 	public String saveUploadedContract(String contractText) {
-		String userId = firebaseAuthService.getCurrentUserId();
+		String userId = authService.getCurrentUserId();
 		String contractId = UUID.randomUUID().toString();
-		String initialStatus = ContractStatus.UPLOADED.name();
+		ContractStatus initialStatus = ContractStatus.UPLOADED;
 
 		DocumentReference docRef = firestore.collection("contracts").document(contractId);
-		docRef.set(new DigitalizedContract(contractId, userId, contractText, initialStatus));
+		docRef.set(DigitalizedContract.builder().id(contractId).userId(userId).contractText(contractText).status(initialStatus).build());
 
 		log.info("Contract saved with ID: {} by user: {} with status: {}", contractId, userId, initialStatus);
 		return contractId;
 	}
 
 	@Override
-	public DeploymentStatusResponseDTO getContractStatus(String contractId) {
+	public List<DigitalizedContract> listContractsForUser(String userId) {
+		List<DigitalizedContract> contracts = new ArrayList<>();
+		try {
+			ApiFuture<QuerySnapshot> future = firestore.collection("contracts")
+					.whereEqualTo("userId", userId)
+					.get();
+
+			List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+
+			for (QueryDocumentSnapshot doc : documents) {
+				String id = doc.getId();
+				String contractUserId = doc.getString("userId");
+				String contractText = doc.getString("contractText");
+				ContractStatus status = ContractStatus.valueOf(doc.getString("status"));
+
+				List<String> extractedClauses = doc.contains("extractedClauses")
+						? (List<String>) doc.get("extractedClauses") : null;
+
+				String soliditySource = doc.getString("soliditySource");
+				String binary = doc.getString("binary");
+				String abi = doc.getString("abi");
+				String deployedAddress = doc.getString("deployedAddress");
+
+				contracts.add(new DigitalizedContract(
+						id,
+						contractUserId,
+						contractText,
+						status,
+						extractedClauses,
+						soliditySource,
+						binary,
+						abi,
+						deployedAddress
+				));
+			}
+		} catch (Exception e) {
+			log.error("Failed to list contracts for userId={}", userId, e);
+		}
+		return contracts;
+	}
+
+	@Override
+	public DigitalizedContract getContract(String contractId) {
 		try {
 			DocumentReference docRef = firestore.collection("contracts").document(contractId);
 			var snapshot = docRef.get().get();
@@ -62,10 +103,30 @@ public class ContractServiceImpl implements IContractService {
 			}
 			verifyOwnership(snapshot);
 
-			String status = snapshot.getString("status");
+			String id = snapshot.getId();
+			String contractUserId = snapshot.getString("userId");
+			String contractText = snapshot.getString("contractText");
+			ContractStatus status = ContractStatus.valueOf(snapshot.getString("status"));
+
+			List<String> extractedClauses = snapshot.contains("extractedClauses")
+					? (List<String>) snapshot.get("extractedClauses") : null;
+
+			String soliditySource = snapshot.getString("soliditySource");
+			String binary = snapshot.getString("binary");
+			String abi = snapshot.getString("abi");
 			String deployedAddress = snapshot.getString("deployedAddress");
 
-			return new DeploymentStatusResponseDTO(contractId, status, deployedAddress);
+			return new DigitalizedContract(
+					id,
+					contractUserId,
+					contractText,
+					status,
+					extractedClauses,
+					soliditySource,
+					binary,
+					abi,
+					deployedAddress
+			);
 
 		} catch (Exception e) {
 			log.error("Failed to fetch contract status for {}", contractId, e);
@@ -83,13 +144,6 @@ public class ContractServiceImpl implements IContractService {
 				throw new IllegalArgumentException("Contract not found");
 			}
 			verifyOwnership(snapshot);
-
-			// Check if clauses are already present
-			if (snapshot.contains("extractedClauses")) {
-				List<String> cachedClauses = (List<String>) snapshot.get("extractedClauses");
-				log.info("Returning cached clauses for contract {}", contractId);
-				return cachedClauses;
-			}
 
 			List<String> cached = (List<String>) snapshot.get("extractedClauses");
 			if (cached != null && !cached.isEmpty()) {
@@ -196,7 +250,7 @@ public class ContractServiceImpl implements IContractService {
 
 	private void verifyOwnership(DocumentSnapshot snapshot) {
 		String contractUserId = snapshot.getString("userId");
-		String currentUserId = firebaseAuthService.getCurrentUserId(); //TODO: Switch to OAuthService check
+		String currentUserId = authService.getCurrentUserId();
 
 		if (contractUserId == null || !contractUserId.equals(currentUserId)) {
 			throw new SecurityException("You are not authorized to access this contract.");
@@ -204,7 +258,7 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	private ContractDeploymentContext prepareDeploymentContext(String contractId, List<Object> constructorParams) throws Exception {
-		String userId = firebaseAuthService.getCurrentUserId();
+		String userId = authService.getCurrentUserId();
 		if (userId == null) {
 			throw new IllegalStateException("User not authenticated");
 		}

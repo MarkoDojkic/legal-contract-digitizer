@@ -1,6 +1,6 @@
 package dev.markodojkic.legalcontractdigitizer.enumsAndRecords;
 
-import dev.markodojkic.legalcontractdigitizer.javafx.JavaFXWindowController;
+import dev.markodojkic.legalcontractdigitizer.javafx.uiController.JavaFXWindowController;
 import javafx.scene.web.WebEngine;
 import javafx.stage.Stage;
 

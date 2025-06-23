@@ -1,5 +1,6 @@
-package dev.markodojkic.legalcontractdigitizer.javafx;
+package dev.markodojkic.legalcontractdigitizer.javafx.uiController;
 
+import dev.markodojkic.legalcontractdigitizer.javafx.WindowAnimator;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;

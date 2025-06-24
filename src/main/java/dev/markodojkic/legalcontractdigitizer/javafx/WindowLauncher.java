@@ -1,8 +1,8 @@
 package dev.markodojkic.legalcontractdigitizer.javafx;
 
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.WebViewWindow;
-import dev.markodojkic.legalcontractdigitizer.javafx.uiController.JavaFXWindowController;
-import dev.markodojkic.legalcontractdigitizer.javafx.uiController.WindowAwareController;
+import dev.markodojkic.legalcontractdigitizer.javafx.controller.JavaFXWindowController;
+import dev.markodojkic.legalcontractdigitizer.javafx.controller.WindowAwareController;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
@@ -33,7 +33,7 @@ public class WindowLauncher {
     @Autowired
     private ApplicationContext applicationContext;
 
-    public void launchWindow(Stage stage, String windowTitle, double width, double height, String contentFxml, String contentCSS, Object ...controller) {
+    public <T extends WindowAwareController> T launchWindow(Stage stage, String windowTitle, double width, double height, String contentFxml, String contentCSS, Object ...controller) {
         try {
             // Load the main window frame (contains title bar, status bar, content area)
             FXMLLoader windowLoader = new FXMLLoader(getClass().getResource("/layout/window.fxml"));
@@ -73,7 +73,8 @@ public class WindowLauncher {
                     windowController.getStatusBar(),
                     windowController.getContentArea()
             ));
-
+            // Return the controller of the content
+            return contentLoader.getController();
         } catch (IOException e) {
             throw new RuntimeException("Failed to launch window with content: " + contentFxml, e);
         }

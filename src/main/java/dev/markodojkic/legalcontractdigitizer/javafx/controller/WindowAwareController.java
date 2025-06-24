@@ -1,4 +1,4 @@
-package dev.markodojkic.legalcontractdigitizer.javafx.uiController;
+package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 public interface WindowAwareController {
     void setWindowController(JavaFXWindowController controller);

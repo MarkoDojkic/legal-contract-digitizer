@@ -1,8 +1,6 @@
 package dev.markodojkic.legalcontractdigitizer.util;
 
 import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
 import org.springframework.http.HttpHeaders;
 
 @AllArgsConstructor

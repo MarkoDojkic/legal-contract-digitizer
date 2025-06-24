@@ -1,0 +1,50 @@
+
+/* Title label */
+.label {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+/* VBox containing dynamic input fields */
+#dynamicFieldsBox {
+    -fx-padding: 10 0 10 0;
+    -fx-background-color: #ffffff;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+/* Each dynamic field container VBox */
+#dynamicFieldsBox > VBox {
+    -fx-spacing: 4;
+}
+
+/* Labels for input fields */
+#dynamicFieldsBox > VBox > Label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #555555;
+}
+
+/* TextFields inside dynamicFieldsBox */
+#dynamicFieldsBox > VBox > TextField {
+    -fx-pref-width: 300;
+    -fx-padding: 6 8;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-border-color: #bbb;
+    -fx-background-color: #fafafa;
+}
+
+/* HBox with buttons */
+.hbox {
+    -fx-alignment: center;
+}
+
+/* Buttons */
+.button {
+    -fx-background-color: #2a72d9;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20;
+    -fx

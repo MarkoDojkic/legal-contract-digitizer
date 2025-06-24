@@ -4,13 +4,13 @@ import dev.markodojkic.legalcontractdigitizer.javafx.WindowAnimator;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.layout.BorderPane;
-import lombok.Getter;
-import org.springframework.stereotype.Component;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
-import javafx.scene.layout.HBox;
+import lombok.Getter;
+import org.springframework.stereotype.Component;
 
 @Component
 @Getter

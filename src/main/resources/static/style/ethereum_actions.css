@@ -1,0 +1,28 @@
+.eth-actions-root {
+    -fx-padding: 24;
+    -fx-background-color: #f8f8ff;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.eth-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333;
+}
+
+#gasResultLabel, #confirmedResultLabel {
+    -fx-font-size: 14px;
+    -fx-text-fill: #444;
+}
+
+#receiptTextArea {
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 13px;
+    -fx-background-color: #f0f0f0;
+}
+
+#actionButtonPane .button {
+    -fx-max-width: 200;
+    -fx-min-width: 200;
+}

@@ -1,12 +1,10 @@
 package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
 import dev.markodojkic.legalcontractdigitizer.dto.UploadResponseDTO;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
-import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -18,11 +16,9 @@ import javafx.stage.Stage;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;

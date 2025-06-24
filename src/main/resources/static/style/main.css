@@ -14,16 +14,21 @@
     -fx-text-fill: #333;
 }
 
+/* Table Row Colors */
 .table-row-cell.UPLOADED {
-    -fx-background-color: #FFE4B5; /* light orange */
+    -fx-background-color: #FFDAB9; /* peach puff (light orange) */
 }
 
 .table-row-cell.CLAUSES_EXTRACTED {
-    -fx-background-color: #ADD8E6; /* light blue */
+    -fx-background-color: #B0E0E6; /* powder blue (light blue) */
+}
+
+.table-row-cell.SOLIDITY_PREPARED {
+    -fx-background-color: #98FB98; /* pale green (light green) */
 }
 
 .table-row-cell.SOLIDITY_GENERATED {
-    -fx-background-color: #90EE90; /* light green */
+    -fx-background-color: #98FB98; /* pale green (light green) */
 }
 
 .table-row-cell.DEPLOYED {
@@ -34,12 +39,17 @@
     -fx-background-color: #32CD32; /* lime green */
 }
 
+/* Table Cell Colors */
 .table-cell.UPLOADED {
-    -fx-text-fill: #A0522D; /* sienna */
+    -fx-text-fill: #8B4513; /* saddle brown (darker than sienna) */
 }
 
 .table-cell.CLAUSES_EXTRACTED {
-    -fx-text-fill: #1E90FF; /* dodger blue */
+    -fx-text-fill: #4682B4; /* steel blue (darker than dodger blue) */
+}
+
+.table-cell.SOLIDITY_PREPARED {
+    -fx-text-fill: #4682B4; /* steel blue (darker than dodger blue) */
 }
 
 .table-cell.SOLIDITY_GENERATED {

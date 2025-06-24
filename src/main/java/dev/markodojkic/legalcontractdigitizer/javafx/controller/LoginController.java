@@ -1,10 +1,11 @@
-package dev.markodojkic.legalcontractdigitizer.javafx.uiController;
+package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
 import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.WebViewWindow;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
+import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -23,6 +24,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.prefs.Preferences;
 
 @Component
@@ -58,7 +60,11 @@ public class LoginController implements WindowAwareController {
     }
     private static final String TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-    private final OkHttpClient httpClient = new OkHttpClient();
+    private final OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build();
 
     private JavaFXWindowController googleLoginController;
 
@@ -109,7 +115,7 @@ public class LoginController implements WindowAwareController {
                 .post(formBody)
                 .build();
 
-        httpClient.newCall(request).enqueue(new Callback() {
+        client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 updateMessageLabel("Failed to get token: " + e.getMessage());
@@ -150,12 +156,13 @@ public class LoginController implements WindowAwareController {
                 .post(body)
                 .build();
 
-        httpClient.newCall(request).enqueue(new Callback() {
+        client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 if (fromCache) {
                     // Clear corrupted or expired cached token
                     prefs.remove("idToken");
+                    AuthSession.setIdToken(null);
                     Platform.runLater(() -> launchGoogleSignInFlow());
                 } else {
                     updateMessageLabel("Backend auth failed: " + e.getMessage());
@@ -167,6 +174,7 @@ public class LoginController implements WindowAwareController {
                 if (!response.isSuccessful()) {
                     if (fromCache) {
                         prefs.remove("idToken");
+                        AuthSession.setIdToken(null);
                         Platform.runLater(() -> launchGoogleSignInFlow());
                     } else {
                         updateMessageLabel("Backend auth error: " + response.message());
@@ -185,14 +193,14 @@ public class LoginController implements WindowAwareController {
                         mainController.setUserData(Map.of(
                                 "name", json.get("name").getAsString(),
                                 "email", json.get("email").getAsString(),
-                                "userId", json.get("userId").getAsString(),
-                                "idToken", idToken
+                                "userId", json.get("userId").getAsString()
                         ));
 
                         prefs.put("name", json.get("name").getAsString());
                         prefs.put("email", json.get("email").getAsString());
                         prefs.put("userId", json.get("userId").getAsString());
                         prefs.put("idToken", idToken);
+                        AuthSession.setIdToken(idToken);
 
                         windowLauncher.launchWindow(
                                 new Stage(),

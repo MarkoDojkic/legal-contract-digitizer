@@ -3,7 +3,7 @@ package dev.markodojkic.legalcontractdigitizer.controller;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +23,7 @@ public class AuthController {
     private String clientId;
 
     @PostMapping("/google")
-    public ResponseEntity<?> authenticateWithGoogle(@RequestBody Map<String, String> body) {
+    public ResponseEntity<Object> authenticateWithGoogle(@RequestBody Map<String, String> body) {
         String idTokenString = body.get("idToken");
 
         if (idTokenString == null) {
@@ -32,7 +32,7 @@ public class AuthController {
 
         try {
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier
-                    .Builder(new NetHttpTransport(), new JacksonFactory())
+                    .Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
                     .setAudience(Collections.singletonList(clientId))
                     .build();
 

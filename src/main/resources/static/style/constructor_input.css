@@ -8,18 +8,18 @@
 }
 
 /* Each dynamic field container VBox */
-#dynamicFieldsBox > VBox {
+#dynamicFieldsBox > .vbox {
     -fx-spacing: 4;
 }
 
 /* Labels for input fields */
-#dynamicFieldsBox > VBox > Label {
+#dynamicFieldsBox > .vbox > .label {
     -fx-font-size: 13px;
     -fx-text-fill: #555555;
 }
 
 /* TextFields inside dynamicFieldsBox */
-#dynamicFieldsBox > VBox > TextField {
+#dynamicFieldsBox > .vbox > .text-field {
     -fx-pref-width: 300;
     -fx-padding: 6 8;
     -fx-border-radius: 3;

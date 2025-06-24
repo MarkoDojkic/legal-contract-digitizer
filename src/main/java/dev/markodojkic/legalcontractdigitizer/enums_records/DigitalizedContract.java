@@ -1,4 +1,4 @@
-package dev.markodojkic.legalcontractdigitizer.enumsAndRecords;
+package dev.markodojkic.legalcontractdigitizer.enums_records;
 
 import lombok.Builder;
 

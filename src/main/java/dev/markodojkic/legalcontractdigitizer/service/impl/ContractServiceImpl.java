@@ -6,10 +6,10 @@ import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import dev.markodojkic.legalcontractdigitizer.dto.CompilationResultDTO;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractDeploymentContext;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.EthereumContractContext;
+import dev.markodojkic.legalcontractdigitizer.enums_records.ContractDeploymentContext;
+import dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.enums_records.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
 import dev.markodojkic.legalcontractdigitizer.service.AIService;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
@@ -34,6 +34,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ContractServiceImpl implements IContractService {
 
+	public static final String BINARY = "binary";
+	public static final String CONTRACT_TEXT = "contractText";
+	public static final String USER_ID = "userId";
+	public static final String DEPLOYED_ADDRESS = "deployedAddress";
+	public static final String SOLIDITY_SOURCE = "soliditySource";
+	public static final String STATUS = "status";
+	public static final String EXTRACTED_CLAUSES = "extractedClauses";
+	public static final String CONTRACTS = "contracts";
 	private final TokenAuthService authService;
 	private final AIService aiService;
 	private final EthereumService ethereumService;
@@ -50,7 +58,7 @@ public class ContractServiceImpl implements IContractService {
 		String contractId = UUID.randomUUID().toString();
 		ContractStatus initialStatus = ContractStatus.UPLOADED;
 
-		DocumentReference docRef = firestore.collection("contracts").document(contractId);
+		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		docRef.set(DigitalizedContract.builder()
 				.id(contractId)
 				.userId(userId)
@@ -66,25 +74,25 @@ public class ContractServiceImpl implements IContractService {
 	public List<DigitalizedContract> listContractsForUser(String userId) {
 		List<DigitalizedContract> contracts = new ArrayList<>();
 		try {
-			ApiFuture<QuerySnapshot> future = firestore.collection("contracts")
-					.whereEqualTo("userId", userId)
+			ApiFuture<QuerySnapshot> future = firestore.collection(CONTRACTS)
+					.whereEqualTo(USER_ID, userId)
 					.get();
 
 			List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 
 			for (QueryDocumentSnapshot doc : documents) {
 				String id = doc.getId();
-				String contractUserId = doc.getString("userId");
-				String contractText = doc.getString("contractText");
-				ContractStatus status = ContractStatus.valueOf(doc.getString("status"));
+				String contractUserId = doc.getString(USER_ID);
+				String contractText = doc.getString(CONTRACT_TEXT);
+				ContractStatus status = ContractStatus.valueOf(doc.getString(STATUS));
 
-				List<String> extractedClauses = doc.contains("extractedClauses")
-						? (List<String>) doc.get("extractedClauses") : null;
+				List<String> extractedClauses = doc.contains(EXTRACTED_CLAUSES)
+						? (List<String>) doc.get(EXTRACTED_CLAUSES) : null;
 
-				String soliditySource = doc.getString("soliditySource");
-				String binary = doc.getString("binary");
+				String soliditySource = doc.getString(SOLIDITY_SOURCE);
+				String binary = doc.getString(BINARY);
 				String abi = doc.getString("abi");
-				String deployedAddress = doc.getString("deployedAddress");
+				String deployedAddress = doc.getString(DEPLOYED_ADDRESS);
 
 				contracts.add(new DigitalizedContract(
 						id,
@@ -112,8 +120,8 @@ public class ContractServiceImpl implements IContractService {
 		// Query contract by deployedAddress
 		QuerySnapshot querySnapshot;
 		try {
-			querySnapshot = firestore.collection("contracts")
-					.whereEqualTo("deployedAddress", deploymentAddress)
+			querySnapshot = firestore.collection(CONTRACTS)
+					.whereEqualTo(DEPLOYED_ADDRESS, deploymentAddress)
 					.limit(1)
 					.get()
 					.get();
@@ -129,10 +137,10 @@ public class ContractServiceImpl implements IContractService {
 		DocumentSnapshot snapshot = querySnapshot.getDocuments().getFirst();
 		DocumentReference docRef = snapshot.getReference();
 
-		ContractStatus currentStatus = ContractStatus.valueOf(snapshot.getString("status"));
+		ContractStatus currentStatus = ContractStatus.valueOf(snapshot.getString(STATUS));
 
 		if (currentStatus == ContractStatus.DEPLOYED) {
-			docRef.update("status", ContractStatus.CONFIRMED.name());
+			docRef.update(STATUS, ContractStatus.CONFIRMED.name());
 			log.info("Updated contract status to CONFIRMED for deployment address: {}", deploymentAddress);
 		} else {
 			log.warn("Cannot update status to CONFIRMED, current status is: {}", currentStatus);
@@ -142,10 +150,10 @@ public class ContractServiceImpl implements IContractService {
 
 	@Override
 	public void deleteIfNotConfirmed(String contractId) {
-		DocumentReference docRef = firestore.collection("contracts").document(contractId);
+		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
 
-		if (!ContractStatus.valueOf(snapshot.getString("status")).equals(ContractStatus.CONFIRMED)) {
+		if (!ContractStatus.valueOf(snapshot.getString(STATUS)).equals(ContractStatus.CONFIRMED)) {
 			docRef.delete();
 			log.info("Deleted contract with ID {}", contractId);
 		} else {
@@ -155,7 +163,7 @@ public class ContractServiceImpl implements IContractService {
 
 	@Override
 	public DigitalizedContract getContract(String contractId) {
-		DocumentReference docRef = firestore.collection("contracts").document(contractId);
+		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
 
 		return mapSnapshotToContract(snapshot);
@@ -163,18 +171,18 @@ public class ContractServiceImpl implements IContractService {
 
 	@Override
 	public List<String> extractClauses(String contractId) {
-		DocumentReference docRef = firestore.collection("contracts").document(contractId);
+		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
 
 		// Retrieve cached clauses if available
-		List<String> cached = (List<String>) snapshot.get("extractedClauses");
+		List<String> cached = (List<String>) snapshot.get(EXTRACTED_CLAUSES);
 		if (cached != null && !cached.isEmpty()) {
 			log.info("Using cached clauses for contract ID: {}", contractId);
 			return cached;
 		}
 
 		// Extract clauses using AI service
-		String text = snapshot.getString("contractText");
+		String text = snapshot.getString(CONTRACT_TEXT);
 		if (text == null || text.isEmpty()) {
 			log.error("Contract text is empty or null for contract ID: {}", contractId);
 			throw new ContractNotFoundException(contractId);
@@ -195,8 +203,8 @@ public class ContractServiceImpl implements IContractService {
 		}
 
 		docRef.update(Map.of(
-				"extractedClauses", clauses,
-				"status", ContractStatus.CLAUSES_EXTRACTED.name()
+				EXTRACTED_CLAUSES, clauses,
+				STATUS, ContractStatus.CLAUSES_EXTRACTED.name()
 		));
 
 		log.info("Successfully extracted {} clauses for contract ID: {}", clauses.size(), contractId);
@@ -205,18 +213,18 @@ public class ContractServiceImpl implements IContractService {
 
 	@Override
 	public String generateSolidity(String contractId) {
-		DocumentReference docRef = firestore.collection("contracts").document(contractId);
+		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
 
 		// Retrieve the extracted clauses
-		List<String> clauses = (List<String>) snapshot.get("extractedClauses");
+		List<String> clauses = (List<String>) snapshot.get(EXTRACTED_CLAUSES);
 		if (clauses == null || clauses.isEmpty()) {
 			log.error("No extracted clauses found for contract ID: {}", contractId);
 			throw new ContractNotFoundException(contractId);
 		}
 
 		// Check if we already have Solidity source cached
-		String cachedSoliditySource = snapshot.getString("soliditySource");
+		String cachedSoliditySource = snapshot.getString(SOLIDITY_SOURCE);
 		if (cachedSoliditySource != null && !cachedSoliditySource.isEmpty()) {
 			log.info("Using cached Solidity contract for contract ID: {}", contractId);
 
@@ -241,8 +249,8 @@ public class ContractServiceImpl implements IContractService {
 
 		// Update document with the generated Solidity source
 		docRef.update(Map.of(
-				"soliditySource", soliditySource,
-				"status", ContractStatus.SOLIDITY_PREPARED.name()
+				SOLIDITY_SOURCE, soliditySource,
+				STATUS, ContractStatus.SOLIDITY_PREPARED.name()
 		));
 		log.info("Successfully updated document with Solidity source for contract ID: {}", contractId);
 
@@ -257,15 +265,16 @@ public class ContractServiceImpl implements IContractService {
 			log.info("Compiling Solidity contract for contract ID: {}", snapshot.getId());
 			result = compile(soliditySource);
 		} catch (IOException | InterruptedException e) {
+			Thread.currentThread().interrupt();
 			log.error("Solidity compilation failed for contract ID: {}", snapshot.getId(), e);
 			throw new CompilationException(snapshot.getId(), e);
 		}
 
 		// Update the document with the binary and ABI after compilation
 		docRef.update(Map.of(
-				"binary", result.getBin(),
+				BINARY, result.getBin(),
 				"abi", result.getAbi(),
-				"status", ContractStatus.SOLIDITY_GENERATED.name()
+				STATUS, ContractStatus.SOLIDITY_GENERATED.name()
 		));
 		log.info("Successfully compiled and updated contract ID: {}", snapshot.getId());
 
@@ -286,8 +295,8 @@ public class ContractServiceImpl implements IContractService {
 
 		context.contractRef().update(
 				Map.of(
-						"status", ContractStatus.DEPLOYED.name(),
-						"deployedAddress", contractAddress
+						STATUS, ContractStatus.DEPLOYED.name(),
+						DEPLOYED_ADDRESS, contractAddress
 				)
 		);
 
@@ -323,13 +332,14 @@ public class ContractServiceImpl implements IContractService {
 			verifyOwnership(snapshot);
 			return snapshot;
 		} catch (InterruptedException | java.util.concurrent.ExecutionException e) {
+			Thread.currentThread().interrupt();
 			log.error("Error retrieving contract {}", contractId, e);
-			throw new RuntimeException("Error retrieving contract: " + contractId, e);
+			throw new SolidityGenerationException("Error retrieving contract: " + contractId, e);
 		}
 	}
 
 	private void verifyOwnership(DocumentSnapshot snapshot) {
-		String contractUserId = snapshot.getString("userId");
+		String contractUserId = snapshot.getString(USER_ID);
 		String currentUserId = authService.getCurrentUserId();
 
 		if (contractUserId == null || !contractUserId.equals(currentUserId)) {
@@ -340,14 +350,14 @@ public class ContractServiceImpl implements IContractService {
 	private DigitalizedContract mapSnapshotToContract(DocumentSnapshot snapshot) {
 		return new DigitalizedContract(
 				snapshot.getId(),
-				snapshot.getString("userId"),
-				snapshot.getString("contractText"),
-				ContractStatus.valueOf(snapshot.getString("status")),
-				snapshot.contains("extractedClauses") ? (List<String>) snapshot.get("extractedClauses") : null,
-				snapshot.getString("soliditySource"),
-				snapshot.getString("binary"),
+				snapshot.getString(USER_ID),
+				snapshot.getString(CONTRACT_TEXT),
+				ContractStatus.valueOf(snapshot.getString(STATUS)),
+				snapshot.contains(EXTRACTED_CLAUSES) ? (List<String>) snapshot.get(EXTRACTED_CLAUSES) : null,
+				snapshot.getString(SOLIDITY_SOURCE),
+				snapshot.getString(BINARY),
 				snapshot.getString("abi"),
-				snapshot.getString("deployedAddress")
+				snapshot.getString(DEPLOYED_ADDRESS)
 		);
 	}
 
@@ -357,10 +367,10 @@ public class ContractServiceImpl implements IContractService {
 			throw new IllegalStateException("User not authenticated");
 		}
 
-		DocumentReference contractRef = firestore.collection("contracts").document(contractId);
+		DocumentReference contractRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, contractRef);
 
-		String contractBinary = snapshot.getString("binary");
+		String contractBinary = snapshot.getString(BINARY);
 		if (contractBinary == null || contractBinary.isEmpty()) {
 			throw new IllegalStateException("Contract binary not found or empty in Firestore");
 		}
@@ -376,7 +386,7 @@ public class ContractServiceImpl implements IContractService {
 			Files.writeString(sourceFile, soliditySource);
 
 			ProcessBuilder pb = new ProcessBuilder(
-					"C:\\Users\\marko.dojkic\\Desktop\\Spring AI Project\\solc-windows.exe",
+					"solc",
 					"--combined-json", "abi,bin",
 					sourceFile.toAbsolutePath().toString()
 			);
@@ -387,14 +397,14 @@ public class ContractServiceImpl implements IContractService {
 
 			if (exitCode != 0) {
 				String err = new String(process.getErrorStream().readAllBytes());
-				throw new RuntimeException("Solidity compilation failed: " + err);
+				throw new SolidityGenerationException("Solidity compilation failed: " + err, null);
 			}
 
 			ObjectMapper mapper = new ObjectMapper();
 			JsonNode root = mapper.readTree(output);
-			JsonNode contractsNode = root.path("contracts");
+			JsonNode contractsNode = root.path(CONTRACTS);
 			if (contractsNode.isEmpty()) {
-				throw new RuntimeException("No contracts found in compilation output");
+				throw new SolidityGenerationException("No contracts found in compilation output", null);
 			}
 
 			String contractKey = contractsNode.fieldNames().next();

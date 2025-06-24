@@ -111,3 +111,13 @@
 .btn-info:hover {
     -fx-background-color: #31b0d5;
 }
+
+.btn-danger {
+    -fx-background-color: #d9534f;
+    -fx-text-fill: white;
+    -fx-background-radius: 4px;
+}
+
+.btn-danger:hover {
+    -fx-background-color: #c9302c;
+}

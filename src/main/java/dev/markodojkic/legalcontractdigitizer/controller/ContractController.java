@@ -2,7 +2,7 @@ package dev.markodojkic.legalcontractdigitizer.controller;
 
 import dev.markodojkic.legalcontractdigitizer.dto.ClauseExtractionResponseDTO;
 import dev.markodojkic.legalcontractdigitizer.dto.UploadResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.exception.ClausesExtractionException;
 import dev.markodojkic.legalcontractdigitizer.exception.CompilationException;
 import dev.markodojkic.legalcontractdigitizer.exception.ContractNotFoundException;
@@ -72,11 +72,11 @@ public class ContractController {
 		try {
 			List<String> clauses = contractService.extractClauses(contractId);
 			return ResponseEntity.ok(new ClauseExtractionResponseDTO(clauses));
-		} catch (ContractNotFoundException e) {
+		} catch (ContractNotFoundException _) {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ClauseExtractionResponseDTO(Collections.singletonList("Contract not found") ));
-		} catch (ClausesExtractionException e) {
+		} catch (ClausesExtractionException _) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ClauseExtractionResponseDTO(Collections.singletonList("Failed to extract clauses")));
-		} catch (Exception e) {
+		} catch (Exception _) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ClauseExtractionResponseDTO(Collections.singletonList("Unknown error occurred")));
 		}
 	}
@@ -89,13 +89,13 @@ public class ContractController {
 		try {
 			String soliditySource = contractService.generateSolidity(contractId);
 			return ResponseEntity.ok(soliditySource);
-		} catch (ContractNotFoundException e) {
+		} catch (ContractNotFoundException _) {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Contract not found");
-		} catch (SolidityGenerationException e) {
+		} catch (SolidityGenerationException _) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to generate Solidity contract");
-		} catch (CompilationException e) {
+		} catch (CompilationException _) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Solidity compilation failed");
-		} catch (Exception e) {
+		} catch (Exception _) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Unknown error occurred");
 		}
 	}
@@ -108,7 +108,7 @@ public class ContractController {
 		try {
 			contractService.deleteIfNotConfirmed(contractId);
 			return ResponseEntity.noContent().build();
-		} catch (IllegalStateException e) {
+		} catch (IllegalStateException _) {
 			log.warn("Attempted to delete confirmed contract: {}", contractId);
 			return ResponseEntity.status(HttpStatus.CONFLICT).build();
 		} catch (Exception e) {

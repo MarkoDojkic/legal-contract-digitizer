@@ -80,10 +80,7 @@ public class EthereumActionsController implements WindowAwareController {
 	public void initialize() {
 		// Initialize UI based on contract
 		Platform.runLater(() -> {
-			if (contract == null) {
-				disableAll();
-				return;
-			}
+			reset();
 			contractIdLabel.setText("Contract ID: " + contract.id());
 			updateButtonsByStatus(contract.status());
 		});
@@ -107,16 +104,19 @@ public class EthereumActionsController implements WindowAwareController {
 		switch (status) {
 			case SOLIDITY_GENERATED -> deployContractBtn.setDisable(false);
 			case DEPLOYED -> checkConfirmedBtn.setDisable(false);
-			case CONFIRMED -> viewOnBlockchainBtn.setDisable(false);
+			case CONFIRMED -> {
+				viewOnBlockchainBtn.setDisable(false);
+				estimateGasBtn.setDisable(true);
+			}
 		}
 	}
 
 
-	private void disableAll() {
+	private void reset() {
 		deployContractBtn.setDisable(true);
 		checkConfirmedBtn.setDisable(true);
 		viewOnBlockchainBtn.setDisable(true);
-		estimateGasBtn.setDisable(true);
+		estimateGasBtn.setDisable(false);
 		getReceiptBtn.setDisable(true);
 	}
 
@@ -170,6 +170,7 @@ public class EthereumActionsController implements WindowAwareController {
 			if (response.getStatusCode().is2xxSuccessful()) {
 				log.info("Contract deployed");
 				Platform.runLater(() -> {
+					reset();
 					updateButtonsByStatus(ContractStatus.DEPLOYED);
 					confirmedResultLabel.setText("");
 				});
@@ -201,6 +202,7 @@ public class EthereumActionsController implements WindowAwareController {
 				Boolean confirmed = response.getBody();
 				Platform.runLater(() -> {
 					if (confirmed) {
+						reset();
 						confirmedResultLabel.setText("Contract confirmed!");
 						updateButtonsByStatus(ContractStatus.CONFIRMED);
 					} else {
@@ -223,8 +225,8 @@ public class EthereumActionsController implements WindowAwareController {
 			windowLauncher.launchWebViewWindow(
 					new Stage(),
 					"Smart Contract view on Blockchain - " + contract.id(),
-					600,
-					600,
+					1024,
+					1280,
 					String.format("%s/address/%s", etherscanUrl, address)
 			);
 		}

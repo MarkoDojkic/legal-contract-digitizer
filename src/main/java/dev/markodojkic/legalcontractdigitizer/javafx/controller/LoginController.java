@@ -223,8 +223,8 @@ public class LoginController implements WindowAwareController {
         WebViewWindow googleLoginWindow = windowLauncher.launchWebViewWindow(
                 new Stage(),
                 "Google Sign-In",
-                600,
-                600,
+                1024,
+                768,
                 authUrl
         );
 

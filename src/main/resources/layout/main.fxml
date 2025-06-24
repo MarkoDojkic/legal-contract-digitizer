@@ -4,7 +4,7 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 <VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
-      alignment="CENTER" spacing="20" style="-fx-padding: 40; -fx-background-color: white; -fx-border-radius: 10; -fx-background-radius: 10;">
+      alignment="CENTER" spacing="20">
 
     <Label text="🎉 Welcome!" style="-fx-font-size: 24px; -fx-font-weight: bold;" />
     <Label fx:id="nameLabel" styleClass="main-label"/>

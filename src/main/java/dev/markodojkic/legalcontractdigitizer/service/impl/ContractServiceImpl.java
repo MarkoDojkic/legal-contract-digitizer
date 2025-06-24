@@ -99,9 +99,45 @@ public class ContractServiceImpl implements IContractService {
 				));
 			}
 		} catch (Exception e) {
+			Thread.currentThread().interrupt();
 			log.error("Failed to list contracts for userId={}", userId, e);
 		}
 		return contracts;
+	}
+
+	@Override
+	public void updateContractStatusToConfirmed(String deploymentAddress)
+			throws ContractNotFoundException, IllegalStateException, IllegalArgumentException {
+
+		// Query contract by deployedAddress
+		QuerySnapshot querySnapshot;
+		try {
+			querySnapshot = firestore.collection("contracts")
+					.whereEqualTo("deployedAddress", deploymentAddress)
+					.limit(1)
+					.get()
+					.get();
+		} catch (Exception e) {
+			Thread.currentThread().interrupt();
+			throw new IllegalArgumentException("Failed to query Firestore", e.getCause());
+		}
+
+		if (querySnapshot.isEmpty()) {
+			throw new ContractNotFoundException("No contract found with deployed address: " + deploymentAddress);
+		}
+
+		DocumentSnapshot snapshot = querySnapshot.getDocuments().getFirst();
+		DocumentReference docRef = snapshot.getReference();
+
+		ContractStatus currentStatus = ContractStatus.valueOf(snapshot.getString("status"));
+
+		if (currentStatus == ContractStatus.DEPLOYED) {
+			docRef.update("status", ContractStatus.CONFIRMED.name());
+			log.info("Updated contract status to CONFIRMED for deployment address: {}", deploymentAddress);
+		} else {
+			log.warn("Cannot update status to CONFIRMED, current status is: {}", currentStatus);
+			throw new IllegalStateException("Contract is not in a deployable state");
+		}
 	}
 
 	@Override

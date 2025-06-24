@@ -45,7 +45,11 @@ public class HttpClientUtil {
 			String responseBody = response.body() != null ? response.body().string() : null;
 			T bodyObj = null;
 			if (responseBody != null && !responseBody.isEmpty() && responseType != Void.class) {
-				bodyObj = mapper.readValue(responseBody, responseType);
+				if (responseType == String.class) {
+					bodyObj = (T) responseBody;
+				} else {
+					bodyObj = mapper.readValue(responseBody, responseType);
+				}
 			}
 			return new ResponseEntity<>(bodyObj, org.springframework.http.HttpStatus.valueOf(response.code()));
 		}

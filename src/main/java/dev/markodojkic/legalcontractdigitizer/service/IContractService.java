@@ -16,5 +16,6 @@ public interface IContractService {
 	BigInteger estimateGasForDeployment(String contractId, List<Object> constructorParams) throws ContractNotFoundException, UnauthorizedAccessException,
 			IllegalStateException, InvalidContractBinaryException, GasEstimationFailedException;
 	List<DigitalizedContract> listContractsForUser(String userId);
+	void updateContractStatusToConfirmed(String deploymentAddress) throws ContractNotFoundException, UnauthorizedAccessException, IllegalStateException;
 	void deleteIfNotConfirmed(String contractId);
 }

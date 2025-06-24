@@ -5,7 +5,7 @@
 }
 
 /* VBox inside login-pane */
-.login-pane > VBox {
+.login-pane > .vbox {
     -fx-background-color: rgba(255, 255, 255, 0.1);
     -fx-padding: 30;
     -fx-spacing: 15;

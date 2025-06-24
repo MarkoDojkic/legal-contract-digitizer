@@ -3,7 +3,7 @@ package dev.markodojkic.legalcontractdigitizer.util;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.json.gson.GsonFactory;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,7 +39,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String idTokenString = authHeader.substring(7);
             try {
                 GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier
-                        .Builder(new NetHttpTransport(), new JacksonFactory())
+                        .Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
                         .setAudience(Collections.singletonList(clientId))
                         .build();
 

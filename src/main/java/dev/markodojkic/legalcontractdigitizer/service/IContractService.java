@@ -1,6 +1,6 @@
 package dev.markodojkic.legalcontractdigitizer.service;
 
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
 
 import java.math.BigInteger;

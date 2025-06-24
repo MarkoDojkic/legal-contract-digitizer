@@ -2,6 +2,7 @@ package dev.markodojkic.legalcontractdigitizer.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.markodojkic.legalcontractdigitizer.exception.ClausesExtractionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -117,20 +118,20 @@ public class AIService {
 
 				JsonNode root = objectMapper.readTree(rawJson);
 				JsonNode choices = root.path("choices");
-				if (choices.isArray() && choices.size() > 0) {
+				if (choices.isArray() && !choices.isEmpty()) {
 					return choices.get(0).path("message").path("content").asText();
 				} else {
-					throw new Exception("Invalid response format");
+					throw new ClausesExtractionException("Invalid response format", null);
 				}
 			} catch (WebClientResponseException e) {
 				// Handling OpenAI API errors
-				log.error("OpenAI API error, HTTP status: {}, Body: {}", e.getRawStatusCode(), e.getResponseBodyAsString());
-				if (e.getRawStatusCode() == 429) {
+				log.error("OpenAI API error, HTTP status: {}, Body: {}", e.getStatusCode().value(), e.getResponseBodyAsString());
+				if (e.getStatusCode().value() == 429) {
 					// Rate limit reached, retry after some delay
 					log.warn("Rate limit exceeded, retrying...");
 				}
 				// Retry on server errors (5xx) or rate limit (429)
-				if (e.getRawStatusCode() >= 500 || e.getRawStatusCode() == 429) {
+				if (e.getStatusCode().value() >= 500 || e.getStatusCode().value() == 429) {
 					try {
 						Thread.sleep(1000); // Backoff before retrying
 					} catch (InterruptedException ex) {
@@ -161,7 +162,7 @@ public class AIService {
 			);
 		} catch (Exception e) {
 			log.error("Failed to parse clauses JSON: {}", jsonArrayString, e);
-			throw new Exception("Error parsing extracted clauses.");
+			throw new ClausesExtractionException("Error parsing extracted clauses.", e.getCause());
 		}
 	}
 

@@ -1,11 +1,13 @@
 package dev.markodojkic.legalcontractdigitizer.util;
 
-import lombok.AllArgsConstructor;
 import org.springframework.http.HttpHeaders;
 
-@AllArgsConstructor
 public class AuthSession {
     private static String idToken;
+
+    private AuthSession() {
+        throw new UnsupportedOperationException("Utility class should not be instantiated");
+    }
 
     public static boolean isAuthenticated() {
         return idToken != null && !idToken.isEmpty();

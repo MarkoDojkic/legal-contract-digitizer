@@ -11,25 +11,29 @@ import java.util.List;
 
 public class Web3jTypeUtil {
 
+	private Web3jTypeUtil() {
+		throw new UnsupportedOperationException("Utility class should not be instantiated");
+	}
+
 	public static List<Type> convertToAbiTypes(List<Object> constructorParams) {
 		List<Type> abiTypes = new ArrayList<>();
 
 		for (Object param : constructorParams) {
-			if (param instanceof String strParam) {
-				if (strParam.matches("^0x[a-fA-F0-9]{40}$")) {
-					// Ethereum address
-					abiTypes.add(new Address(strParam));
-				} else if (strParam.matches("^\\d+$")) {
-					// Numeric string
-					abiTypes.add(new Uint256(new BigInteger(strParam)));
-				} else {
-					// Fallback to string
-					abiTypes.add(new Utf8String(strParam));
+			switch (param) {
+				case String strParam -> {
+					if (strParam.matches("^0x[a-fA-F0-9]{40}$")) {
+						// Ethereum address
+						abiTypes.add(new Address(strParam));
+					} else if (strParam.matches("^\\d+$")) {
+						// Numeric string
+						abiTypes.add(new Uint256(new BigInteger(strParam)));
+					} else {
+						// Fallback to string
+						abiTypes.add(new Utf8String(strParam));
+					}
 				}
-			} else if (param instanceof Number num) {
-				abiTypes.add(new Uint256(BigInteger.valueOf(num.longValue())));
-			} else {
-				throw new IllegalArgumentException("Unsupported constructor parameter type: " + param);
+				case Number num -> abiTypes.add(new Uint256(BigInteger.valueOf(num.longValue())));
+				default -> throw new IllegalArgumentException("Unsupported constructor parameter type: " + param);
 			}
 		}
 

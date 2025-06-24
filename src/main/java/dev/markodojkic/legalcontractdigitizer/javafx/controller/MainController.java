@@ -2,8 +2,8 @@ package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
 import dev.markodojkic.legalcontractdigitizer.dto.UploadResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
 import javafx.application.Platform;
@@ -30,7 +30,7 @@ import java.util.Objects;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
-import static dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus.*;
+import static dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus.*;
 
 @Component
 @Slf4j
@@ -121,14 +121,15 @@ public class MainController implements WindowAwareController {
             private final Button nextStepBtn = new Button();
             private final Button viewClausesBtn = new Button("View Clauses");
             private final Button viewSolidityBtn = new Button("View Solidity");
+            private final Button deleteBtn = new Button("Delete");
 
             private final HBox container = new HBox(8);
 
             {
-                // Add CSS style classes
                 nextStepBtn.getStyleClass().add("btn-action");
                 viewClausesBtn.getStyleClass().add("btn-info");
                 viewSolidityBtn.getStyleClass().add("btn-info");
+                deleteBtn.getStyleClass().add("btn-danger");
                 container.setAlignment(Pos.CENTER);
             }
 
@@ -141,18 +142,36 @@ public class MainController implements WindowAwareController {
                     return;
                 }
 
-                DigitalizedContract contract = getTableView().getItems().get(getIndex());
-                ContractStatus status = contract.status();
-
                 container.getChildren().clear();
 
-                nextStepBtn.setOnAction(e -> performNextStep(contract));
+                nextStepBtn.setOnAction(e -> performNextStep(getTableView().getItems().get(getIndex())));
 
-                viewClausesBtn.setOnAction(e -> fetchAndShowClauses(contract));
+                viewClausesBtn.setOnAction(e -> fetchAndShowClauses(getTableView().getItems().get(getIndex())));
 
-                viewSolidityBtn.setOnAction(e -> fetchAndShowSolidity(contract));
+                viewSolidityBtn.setOnAction(e -> fetchAndShowSolidity(getTableView().getItems().get(getIndex())));
 
-                switch (status) {
+                deleteBtn.setOnAction(e -> {
+                    String url = baseUrl + "/" + getTableView().getItems().get(getIndex()).id();
+                    try {
+                        ResponseEntity<Void> response = HttpClientUtil.delete(url, null, Void.class);
+                        if (response.getStatusCode().is2xxSuccessful()) {
+                            contractsTable.getItems().remove(getTableView().getItems().get(getIndex()));
+                            refreshContracts();
+                        } else {
+                            String msg = response.getStatusCode() == HttpStatus.CONFLICT
+                                    ? "Cannot delete: contract is already confirmed."
+                                    : "Deletion failed: " + response.getStatusCode();
+                            // Optionally show error UI:
+                            // showError(msg);
+                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                        // Optionally show error UI:
+                        // showError("Deletion failed due to exception");
+                    }
+                });
+
+                switch (getTableView().getItems().get(getIndex()).status()) {
                     case UPLOADED -> {
                         nextStepBtn.setText("Extract Clauses");
                         container.getChildren().add(nextStepBtn);
@@ -168,10 +187,10 @@ public class MainController implements WindowAwareController {
                         nextStepBtn.getStyleClass().add("btn-action");
                         nextStepBtn.setOnAction(e -> {
                             EthereumActionsController controller = applicationContext.getBean(EthereumActionsController.class);
-                            controller.setContract(contract);
+                            controller.setContract(getTableView().getItems().get(getIndex()));
                             windowLauncher.launchWindow(
                                     new Stage(),
-                                    "Ethereum Actions - " + contract.id(),
+                                    "Ethereum Actions - " + getTableView().getItems().get(getIndex()).id(),
                                     500,
                                     800,
                                     "/layout/ethereum_actions.fxml",
@@ -183,39 +202,9 @@ public class MainController implements WindowAwareController {
                     }
                 }
 
-                if (status.compareTo(CLAUSES_EXTRACTED) >= 0) {
-                    container.getChildren().add(viewClausesBtn);
-                }
-                if (status.compareTo(SOLIDITY_PREPARED) >= 0) {
-                    container.getChildren().add(viewSolidityBtn);
-                }
-
-                if (!status.equals(CONFIRMED)) {
-                    Button deleteBtn = new Button("Delete");
-                    deleteBtn.getStyleClass().add("btn-danger");
-                    deleteBtn.setOnAction(e -> {
-                        String contractId = contract.id();
-                        String url = baseUrl + "/" + contractId;
-                        try {
-                            ResponseEntity<Void> response = HttpClientUtil.delete(url, null, Void.class);
-                            if (response.getStatusCode().is2xxSuccessful()) {
-                                contractsTable.getItems().remove(contract);
-                                refreshContracts();
-                            } else {
-                                String msg = response.getStatusCode() == HttpStatus.CONFLICT
-                                        ? "Cannot delete: contract is already confirmed."
-                                        : "Deletion failed: " + response.getStatusCode();
-                                // Optionally show error UI:
-                                // showError(msg);
-                            }
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                            // Optionally show error UI:
-                            // showError("Deletion failed due to exception");
-                        }
-                    });
-                    container.getChildren().add(deleteBtn);
-                }
+                if (getTableView().getItems().get(getIndex()).status().compareTo(CLAUSES_EXTRACTED) >= 0) container.getChildren().add(viewClausesBtn);
+                if (getTableView().getItems().get(getIndex()).status().compareTo(SOLIDITY_PREPARED) >= 0) container.getChildren().add(viewSolidityBtn);
+                if (!getTableView().getItems().get(getIndex()).status().equals(CONFIRMED)) container.getChildren().add(deleteBtn);
 
                 setGraphic(container);
             }
@@ -241,9 +230,8 @@ public class MainController implements WindowAwareController {
                     getStyleClass().removeAll("UPLOADED", "CLAUSES_EXTRACTED", "SOLIDITY_GENERATED", "DEPLOYED", "CONFIRMED");
 
                     // Add class matching the current status
-                    String statusClass = item.status().toString();
-                    if (statusClass != null) {
-                        getStyleClass().add(statusClass);
+                    if (item.status() != null) {
+                        getStyleClass().add(item.status().toString());
                     }
                 }
             }
@@ -294,7 +282,7 @@ public class MainController implements WindowAwareController {
             if (response.getStatusCode().is2xxSuccessful() || contract.status().equals(CLAUSES_EXTRACTED)) {
                 refreshContracts();
             } else {
-                System.err.println("Next step failed: HTTP " + response.getStatusCode());
+                log.error("Next step failed: HTTP {}", response.getStatusCode());
                 // showError("Next step failed: HTTP " + response.getStatusCode());
             }
         } catch (Exception e) {

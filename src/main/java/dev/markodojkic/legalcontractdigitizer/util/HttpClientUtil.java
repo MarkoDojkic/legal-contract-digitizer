@@ -12,6 +12,10 @@ import java.util.concurrent.TimeUnit;
 
 public class HttpClientUtil {
 
+	private HttpClientUtil() {
+		throw new UnsupportedOperationException("Utility class should not be instantiated");
+	}
+
 	private static final OkHttpClient client = new OkHttpClient.Builder()
 			.connectTimeout(60, TimeUnit.SECONDS)
 			.readTimeout(60, TimeUnit.SECONDS)

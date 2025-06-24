@@ -1,7 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer.javafx;
 
 import dev.markodojkic.legalcontractdigitizer.LCDJavaFxUIApplication.StageReadyEvent;
-import dev.markodojkic.legalcontractdigitizer.javafx.uiController.LoginController;
+import dev.markodojkic.legalcontractdigitizer.javafx.controller.LoginController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;

@@ -1,4 +1,4 @@
-package dev.markodojkic.legalcontractdigitizer.javafx.uiController;
+package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.ListView;

@@ -2,7 +2,6 @@
 
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.layout.VBox?>
-
 <VBox spacing="10" xmlns:fx="http://javafx.com/fxml">
     <ListView fx:id="clausesListView" prefHeight="800" />
 </VBox>

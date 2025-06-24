@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.awt.*;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -34,7 +35,7 @@ public class MiscellaneousConfig {
 			}
 		} catch (IOException e) {
 			log.error(e.getLocalizedMessage());
-			throw new RuntimeException("Firebase connection failure, cannot start application. Check service account credentials and try starting again.");
+			throw new IllegalComponentStateException("Firebase connection failure, cannot start application. Check service account credentials and try starting again.");
 		}
 	}
 

@@ -2,7 +2,7 @@ package dev.markodojkic.legalcontractdigitizer.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.EthereumContractContext;
+import dev.markodojkic.legalcontractdigitizer.enums_records.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
 import dev.markodojkic.legalcontractdigitizer.util.Web3jTypeUtil;
@@ -97,7 +97,7 @@ public class EthereumServiceImpl implements EthereumService {
 
             log.info("Deploying contract with gasPrice={} and gasLimit={}", gasPrice, gasLimit);
 
-            String txHash = ((RawTransactionManager) transactionManager).sendTransaction(
+            String txHash = (transactionManager).sendTransaction(
                     gasPrice,
                     gasLimit,
                     null,

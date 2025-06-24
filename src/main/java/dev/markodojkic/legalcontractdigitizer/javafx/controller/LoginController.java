@@ -3,7 +3,7 @@ package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.WebViewWindow;
+import dev.markodojkic.legalcontractdigitizer.enums_records.WebViewWindow;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import javafx.application.Platform;
@@ -29,6 +29,9 @@ import java.util.prefs.Preferences;
 
 @Component
 public class LoginController implements WindowAwareController {
+    public static final String EMAIL = "email";
+    public static final String USER_ID = "userId";
+    public static final String ID_TOKEN = "idToken";
     @Setter
     @Getter
     private JavaFXWindowController windowController;
@@ -66,8 +69,6 @@ public class LoginController implements WindowAwareController {
             .writeTimeout(60, TimeUnit.SECONDS)
             .build();
 
-    private JavaFXWindowController googleLoginController;
-
     Preferences prefs = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
 
     @FXML private Button loginButton;
@@ -75,7 +76,7 @@ public class LoginController implements WindowAwareController {
 
     @FXML
     public void onLoginButtonClicked() {
-        String cachedToken = prefs.get("idToken", null);
+        String cachedToken = prefs.get(ID_TOKEN, null);
         if (cachedToken != null) {
             sendIdTokenToBackend(cachedToken, true);
         } else launchGoogleSignInFlow();
@@ -144,7 +145,7 @@ public class LoginController implements WindowAwareController {
 
     private void sendIdTokenToBackend(String idToken, boolean fromCache) {
         JsonObject jsonBody = new JsonObject();
-        jsonBody.addProperty("idToken", idToken);
+        jsonBody.addProperty(ID_TOKEN, idToken);
 
         RequestBody body = RequestBody.create(
                 jsonBody.toString(),
@@ -161,7 +162,7 @@ public class LoginController implements WindowAwareController {
             public void onFailure(Call call, IOException e) {
                 if (fromCache) {
                     // Clear corrupted or expired cached token
-                    prefs.remove("idToken");
+                    prefs.remove(ID_TOKEN);
                     AuthSession.setIdToken(null);
                     Platform.runLater(() -> launchGoogleSignInFlow());
                 } else {
@@ -173,7 +174,7 @@ public class LoginController implements WindowAwareController {
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     if (fromCache) {
-                        prefs.remove("idToken");
+                        prefs.remove(ID_TOKEN);
                         AuthSession.setIdToken(null);
                         Platform.runLater(() -> launchGoogleSignInFlow());
                     } else {
@@ -192,14 +193,14 @@ public class LoginController implements WindowAwareController {
 
                         mainController.setUserData(Map.of(
                                 "name", json.get("name").getAsString(),
-                                "email", json.get("email").getAsString(),
-                                "userId", json.get("userId").getAsString()
+                                EMAIL, json.get(EMAIL).getAsString(),
+                                USER_ID, json.get(USER_ID).getAsString()
                         ));
 
                         prefs.put("name", json.get("name").getAsString());
-                        prefs.put("email", json.get("email").getAsString());
-                        prefs.put("userId", json.get("userId").getAsString());
-                        prefs.put("idToken", idToken);
+                        prefs.put(EMAIL, json.get(EMAIL).getAsString());
+                        prefs.put(USER_ID, json.get(USER_ID).getAsString());
+                        prefs.put(ID_TOKEN, idToken);
                         AuthSession.setIdToken(idToken);
 
                         windowLauncher.launchWindow(
@@ -228,7 +229,6 @@ public class LoginController implements WindowAwareController {
                 authUrl
         );
 
-        googleLoginController = googleLoginWindow.controller(); // save this reference
 
         // Attach listener to *that* WebView
         googleLoginWindow.engine().locationProperty().addListener((obs, oldLoc, newLoc) -> {
@@ -236,15 +236,13 @@ public class LoginController implements WindowAwareController {
                 String code = extractQueryParam(newLoc, "code");
                 if (code != null) exchangeCodeForIdToken(code);
 
-                if (googleLoginController != null) {
-                    Platform.runLater(() -> googleLoginController.getCloseBtn().fire());
-                }
+                Platform.runLater(() -> googleLoginWindow.controller().getCloseBtn().fire());
             } else if (newLoc.contains("error=")) {
                 String error = extractQueryParam(newLoc, "error");
                 updateMessageLabel("Login error: " + (error != null ? error : "Unknown"));
 
-                if (googleLoginController != null) {
-                    Platform.runLater(() -> googleLoginController.getCloseBtn().fire());
+                if (googleLoginWindow.controller() != null) {
+                    Platform.runLater(() -> googleLoginWindow.controller().getCloseBtn().fire());
                 }
             }
         });

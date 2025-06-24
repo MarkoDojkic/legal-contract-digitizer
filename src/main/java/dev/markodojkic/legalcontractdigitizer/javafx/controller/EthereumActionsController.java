@@ -1,8 +1,8 @@
 package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import dev.markodojkic.legalcontractdigitizer.dto.GasEstimateResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.ContractStatus;
-import dev.markodojkic.legalcontractdigitizer.enumsAndRecords.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
 import javafx.application.Platform;
@@ -15,7 +15,6 @@ import javafx.stage.Stage;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
@@ -25,7 +24,6 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -60,11 +58,6 @@ public class EthereumActionsController implements WindowAwareController {
 
 	private final WindowLauncher windowLauncher;
 	private final ApplicationContext applicationContext;
-	private final OkHttpClient client = new OkHttpClient.Builder()
-			.connectTimeout(60, TimeUnit.SECONDS)
-			.readTimeout(60, TimeUnit.SECONDS)
-			.writeTimeout(60, TimeUnit.SECONDS)
-			.build();
 
 	public EthereumActionsController(@Value("${server.port}") Integer serverPort,
 	                                 @Value("${ethereum.etherscan.url}") String etherscanUrl,
@@ -90,10 +83,7 @@ public class EthereumActionsController implements WindowAwareController {
 		checkConfirmedBtn.setOnAction(e -> checkConfirmation());
 		viewOnBlockchainBtn.setOnAction(e -> openEtherscan());
 		getReceiptBtn.setOnAction(e -> getTransactionReceipt());
-		transactionHashField.textProperty().addListener((observable, oldValue, newValue) -> {
-			// Enable the button if the text field has text
-			getReceiptBtn.setDisable(newValue.isEmpty());
-		});
+		transactionHashField.textProperty().addListener((_, _, newValue) -> getReceiptBtn.setDisable(newValue.isEmpty()));
 	}
 
 	private void updateButtonsByStatus(ContractStatus status) {
@@ -108,6 +98,7 @@ public class EthereumActionsController implements WindowAwareController {
 				viewOnBlockchainBtn.setDisable(false);
 				estimateGasBtn.setDisable(true);
 			}
+			default -> reset();
 		}
 	}
 
@@ -199,7 +190,7 @@ public class EthereumActionsController implements WindowAwareController {
 			);
 
 			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-				Boolean confirmed = response.getBody();
+				boolean confirmed = response.getBody();
 				Platform.runLater(() -> {
 					if (confirmed) {
 						reset();

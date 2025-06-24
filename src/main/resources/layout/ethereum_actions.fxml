@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.scene.control.*?>
-<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 <VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
       alignment="CENTER" spacing="16" styleClass="eth-actions-root">
@@ -12,11 +11,11 @@
     <Button text="Estimate Gas" fx:id="estimateGasBtn"/>
     <Label fx:id="gasResultLabel"/>
 
-    <StackPane fx:id="actionButtonPane">
-        <Button fx:id="deployContractBtn" text="Deploy contract" maxWidth="Infinity" />
-        <Button fx:id="checkConfirmedBtn" text="Check Confirmation" maxWidth="Infinity" />
-        <Button fx:id="viewOnBlockchainBtn" text="View on Blockchain" maxWidth="Infinity" />
-    </StackPane>
+    <VBox fx:id="actionButtonPane" alignment="CENTER" spacing="8">
+        <Button fx:id="deployContractBtn" text="Deploy contract" />
+        <Button fx:id="checkConfirmedBtn" text="Check Confirmation" />
+        <Button fx:id="viewOnBlockchainBtn" text="View on Blockchain" />
+    </VBox>
     <Label fx:id="confirmedResultLabel"/>
 
     <Button text="Get Transaction Receipt" fx:id="getReceiptBtn"/>

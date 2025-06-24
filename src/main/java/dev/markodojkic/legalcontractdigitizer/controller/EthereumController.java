@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -124,6 +125,7 @@ public class EthereumController {
 		}
 		try {
 			boolean confirmed = ethereumService.isContractConfirmed(address);
+			if(confirmed) contractService.updateContractStatusToConfirmed(address);
 			return ResponseEntity.ok(confirmed);
 		} catch (InvalidEthereumAddressException e) {
 			log.warn("Invalid contract address: {}", e.getMessage());
@@ -155,7 +157,7 @@ public class EthereumController {
 			if (receiptJson == null) {
 				return ResponseEntity.noContent().build();
 			}
-			return ResponseEntity.ok(receiptJson);
+			return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(receiptJson);
 		} catch (IllegalArgumentException e) {
 			log.warn("Invalid transaction hash: {}", e.getMessage());
 			return ResponseEntity.badRequest().body("Invalid transaction hash: " + e.getMessage());

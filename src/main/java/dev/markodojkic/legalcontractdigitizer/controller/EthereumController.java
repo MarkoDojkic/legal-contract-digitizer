@@ -1,12 +1,12 @@
 package dev.markodojkic.legalcontractdigitizer.controller;
 
-import dev.markodojkic.legalcontractdigitizer.dto.DeploymentRequestDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.GasEstimateResponseDTO;
+import dev.markodojkic.legalcontractdigitizer.dto.*;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
 import dev.markodojkic.legalcontractdigitizer.service.impl.ContractServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigInteger;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/ethereum")
@@ -166,4 +167,63 @@ public class EthereumController {
 			return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
 		}
 	}
+
+	@Operation(summary = "Get balance of smart contract (in Wei)",
+			responses = {
+					@ApiResponse(responseCode = "200", description = "Balance returned successfully"),
+					@ApiResponse(responseCode = "400", description = "Invalid Ethereum address", content = @Content),
+					@ApiResponse(responseCode = "500", description = "Ethereum RPC error", content = @Content)
+			})
+	@GetMapping("/{address}/balance")
+	public ResponseEntity<String> getContractBalance(@PathVariable String address) {
+		try {
+			BigInteger balance = ethereumService.getBalance(address);
+			return ResponseEntity.ok(balance.toString());
+		} catch (InvalidEthereumAddressException e) {
+			return ResponseEntity.badRequest().body("Invalid address: " + e.getMessage());
+		} catch (EthereumConnectionException e) {
+			return ResponseEntity.internalServerError().body("Failed to fetch balance: " + e.getMessage());
+		}
+	}
+
+	@Operation(summary = "Invoke a function on deployed smart contract",
+			responses = {
+					@ApiResponse(responseCode = "200", description = "Function invoked successfully, returns txHash"),
+					@ApiResponse(responseCode = "400", description = "Invalid input or address", content = @Content),
+					@ApiResponse(responseCode = "500", description = "Function invocation failed", content = @Content)
+			})
+	@PostMapping("/{address}/invoke")
+	public ResponseEntity<String> invokeContractFunction(@PathVariable String address,
+	                                                     @RequestBody ContractFunctionRequestDTO request) {
+		try {
+			String txHash = ethereumService.invokeFunction(
+					address,
+					request.getAbi(),
+					request.getFunctionName(),
+					request.getParams(),
+					request.getValueWei()
+			);
+			return ResponseEntity.ok(txHash);
+		} catch (InvalidEthereumAddressException e) {
+			return ResponseEntity.badRequest().body("Invalid address: " + e.getMessage());
+		} catch (EthereumConnectionException e) {
+			return ResponseEntity.internalServerError().body("Ethereum error: " + e.getMessage());
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError().body("Unexpected error: " + e.getMessage());
+		}
+	}
+
+	@PostMapping("/parties-balances")
+	@Operation(summary = "Get balances of all public address-type variables in a contract")
+	public ResponseEntity<List<PartyBalanceDto>> getPartiesBalances(
+			@RequestBody ContractPartiesBalanceRequest request) {
+		try {
+			return ResponseEntity.ok(ethereumService.getContractPartiesBalances(request));
+		} catch (ContractReadException e) {
+			return ResponseEntity.status(404).build();
+		} catch (Exception e) {
+			return ResponseEntity.status(500).build();
+		}
+	}
+
 }

@@ -1,17 +1,26 @@
 package dev.markodojkic.legalcontractdigitizer.util;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.markodojkic.legalcontractdigitizer.exception.InvalidFunctionCallException;
+import lombok.extern.slf4j.Slf4j;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Type;
 import org.web3j.abi.datatypes.Utf8String;
 import org.web3j.abi.datatypes.generated.Uint256;
+import org.web3j.protocol.core.methods.response.AbiDefinition;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Web3jTypeUtil {
+@Slf4j
+public class Web3jUtil {
 
-	private Web3jTypeUtil() {
+	private static final ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+	private Web3jUtil() {
 		throw new UnsupportedOperationException("Utility class should not be instantiated");
 	}
 
@@ -38,5 +47,26 @@ public class Web3jTypeUtil {
 		}
 
 		return abiTypes;
+	}
+
+	/**
+	 * Parses ABI JSON and returns list of all definitions.
+	 */
+	public static List<AbiDefinition> parseAbi(String abiJson) {
+		try {
+			return mapper.readValue(abiJson, new TypeReference<>() {});
+		} catch (Exception e) {
+			throw new InvalidFunctionCallException("Failed to parse ABI: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Finds a function definition in the ABI by name.
+	 */
+	public static AbiDefinition findFunctionDefinition(String abiJson, String functionName) {
+		return parseAbi(abiJson).stream()
+				.filter(abi -> "function".equals(abi.getType()) && functionName.equals(abi.getName()))
+				.findFirst()
+				.orElse(null);
 	}
 }

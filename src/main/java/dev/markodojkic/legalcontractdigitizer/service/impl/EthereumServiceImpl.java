@@ -2,28 +2,40 @@ package dev.markodojkic.legalcontractdigitizer.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import dev.markodojkic.legalcontractdigitizer.dto.ContractPartiesBalanceRequest;
+import dev.markodojkic.legalcontractdigitizer.dto.PartyBalanceDto;
 import dev.markodojkic.legalcontractdigitizer.enums_records.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
 import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
-import dev.markodojkic.legalcontractdigitizer.util.Web3jTypeUtil;
+import dev.markodojkic.legalcontractdigitizer.util.Web3jUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.abi.FunctionEncoder;
+import org.web3j.abi.FunctionReturnDecoder;
+import org.web3j.abi.TypeReference;
+import org.web3j.abi.datatypes.Address;
+import org.web3j.abi.datatypes.Function;
 import org.web3j.abi.datatypes.Type;
 import org.web3j.crypto.Credentials;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.Transaction;
+import org.web3j.protocol.core.methods.response.AbiDefinition;
+import org.web3j.protocol.core.methods.response.EthCall;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.RawTransactionManager;
 import org.web3j.tx.TransactionManager;
+import org.web3j.utils.Convert;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -71,7 +83,7 @@ public class EthereumServiceImpl implements EthereumService {
             throw new InvalidContractBinaryException("Contract binary must not be null or empty");
         }
         try {
-            List<Type> abiTypes = Web3jTypeUtil.convertToAbiTypes(constructorParams);
+            List<Type> abiTypes = Web3jUtil.convertToAbiTypes(constructorParams);
             String encodedConstructor = FunctionEncoder.encodeConstructor(abiTypes);
             return new EthereumContractContext(binary, encodedConstructor);
         } catch (Exception e) {
@@ -222,4 +234,141 @@ public class EthereumServiceImpl implements EthereumService {
             throw new DeploymentFailedException("Failed to get transaction receipt: " + e.getMessage(), e);
         }
     }
+
+    @Override
+    public BigInteger getBalance(String address) throws InvalidEthereumAddressException, EthereumConnectionException {
+        if (!isValidAddress(address)) {
+            throw new InvalidEthereumAddressException("Invalid Ethereum address: " + address);
+        }
+
+        try {
+            return web3j.ethGetBalance(address, DefaultBlockParameterName.LATEST)
+                    .send()
+                    .getBalance();
+        } catch (Exception e) {
+            log.error("Error retrieving balance for address {}", address, e);
+            throw new EthereumConnectionException("Failed to retrieve balance", e);
+        }
+    }
+
+    @Override
+    public String invokeFunction(
+            String contractAddress,
+            String abiJson,
+            String functionName,
+            List<Object> params,
+            BigInteger valueWei
+    ) throws InvalidEthereumAddressException, InvalidFunctionCallException, EthereumConnectionException {
+        if (!isValidAddress(contractAddress)) {
+            throw new InvalidEthereumAddressException("Invalid Ethereum address: " + contractAddress);
+        }
+
+        var abiDef = Web3jUtil.findFunctionDefinition(abiJson, functionName);
+        if (abiDef == null) {
+            throw new InvalidFunctionCallException("Function '" + functionName + "' not found in ABI");
+        }
+
+        try {
+            List<Type> inputTypes = Web3jUtil.convertToAbiTypes(params);
+            var function = new org.web3j.abi.datatypes.Function(functionName, inputTypes, List.of());
+
+            String data = org.web3j.abi.FunctionEncoder.encode(function);
+            BigInteger nonce = web3j.ethGetTransactionCount(credentials.getAddress(), DefaultBlockParameterName.PENDING)
+                    .send()
+                    .getTransactionCount();
+            BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
+            BigInteger gasLimit = web3j.ethEstimateGas(
+                            Transaction.createFunctionCallTransaction(
+                                    credentials.getAddress(),
+                                    nonce,
+                                    gasPrice,
+                                    null,
+                                    contractAddress,
+                                    valueWei == null ? BigInteger.ZERO : valueWei,
+                                    data
+                            )
+                    ).send()
+                    .getAmountUsed()
+                    .multiply(BigInteger.valueOf(2));
+
+            return transactionManager.sendTransaction(
+                    gasPrice,
+                    gasLimit,
+                    contractAddress,
+                    data,
+                    valueWei == null ? BigInteger.ZERO : valueWei
+            ).getTransactionHash();
+
+        } catch (InvalidFunctionCallException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error invoking " + functionName + " on " + contractAddress, e);
+            throw new EthereumConnectionException("Failed to invoke function: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public List<PartyBalanceDto> getContractPartiesBalances(ContractPartiesBalanceRequest request) throws ContractReadException {
+        try {
+            List<PartyBalanceDto> result = new ArrayList<>();
+
+            // Add contract balance
+            BigInteger contractBalanceWei = web3j.ethGetBalance(request.getContractAddress(), DefaultBlockParameterName.LATEST)
+                    .send().getBalance();
+            BigDecimal contractBalanceEth = Convert.fromWei(new BigDecimal(contractBalanceWei), Convert.Unit.ETHER);
+            result.add(PartyBalanceDto.builder()
+                    .roleName("contract")
+                    .address(request.getContractAddress())
+                    .balanceEth(contractBalanceEth)
+                    .build());
+
+            // Parse ABI and find all public address-type variables
+            List<AbiDefinition> abiDefs = Web3jUtil.parseAbi(request.getAbi());
+            for (AbiDefinition def : abiDefs) {
+                if ("function".equals(def.getType())
+                        && def.getInputs().isEmpty()
+                        && def.getOutputs().size() == 1
+                        && "address".equals(def.getOutputs().get(0).getType())) {
+
+                    String roleName = def.getName();
+                    String address = callAddressGetter(request.getContractAddress(), roleName);
+                    if (address != null && !address.equalsIgnoreCase("0x0000000000000000000000000000000000000000")) {
+                        BigInteger balanceWei = web3j.ethGetBalance(address, DefaultBlockParameterName.LATEST).send().getBalance();
+                        BigDecimal balanceEth = Convert.fromWei(new BigDecimal(balanceWei), Convert.Unit.ETHER);
+                        result.add(PartyBalanceDto.builder()
+                                .roleName(roleName)
+                                .address(address)
+                                .balanceEth(balanceEth)
+                                .build());
+                    }
+                }
+            }
+
+            return result;
+        } catch (Exception e) {
+            throw new ContractReadException("Failed to read contract parties and balances", e);
+        }
+    }
+
+    private String callAddressGetter(String contractAddress, String getterName) throws Exception {
+        Function function = new Function(
+                getterName,
+                Collections.emptyList(),
+                Collections.singletonList(new TypeReference<Address>() {})
+        );
+        String encoded = FunctionEncoder.encode(function);
+        EthCall response = web3j.ethCall(
+                Transaction.createEthCallTransaction(null, contractAddress, encoded),
+                DefaultBlockParameterName.LATEST
+        ).send();
+
+        if (response.isReverted() || response.hasError()) return null;
+
+        List<Type> decoded = FunctionReturnDecoder.decode(response.getValue(), function.getOutputParameters());
+        if (decoded.isEmpty()) return null;
+
+        return ((Address) decoded.get(0)).getValue();
+    }
+
+
 }

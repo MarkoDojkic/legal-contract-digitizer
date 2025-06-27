@@ -38,6 +38,10 @@
     -fx-background-color: #32CD32; /* lime green */
 }
 
+.table-row-cell.TERMINATED {
+    -fx-background-color: #FF6347; /* tomato (light red) */
+}
+
 /* Table Cell Colors */
 .table-cell.UPLOADED {
     -fx-text-fill: #8B4513; /* saddle brown (darker than sienna) */
@@ -61,4 +65,8 @@
 
 .table-cell.CONFIRMED {
     -fx-text-fill: #228B22; /* forest green */
+}
+
+.table-cell.TERMINATED {
+    -fx-text-fill: #B22222; /* firebrick (darker than tomato) */
 }

@@ -5,7 +5,6 @@ import dev.markodojkic.legalcontractdigitizer.exception.*;
 import dev.markodojkic.legalcontractdigitizer.service.IContractService;
 import dev.markodojkic.legalcontractdigitizer.service.IEthereumService;
 import dev.markodojkic.legalcontractdigitizer.service.IEthereumWalletService;
-import dev.markodojkic.legalcontractdigitizer.service.impl.ContractServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -17,12 +16,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.web3j.crypto.Credentials;
-import org.web3j.utils.Convert;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
+
+import static dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus.CONFIRMED;
+import static dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus.TERMINATED;
 
 @RestController
 @RequestMapping("/api/v1/ethereum")
@@ -102,28 +102,27 @@ public class EthereumController {
 		if (request == null || request.getContractId() == null || request.getContractId().isBlank()) {
 			log.warn("Estimate gas request missing contractId");
 			return ResponseEntity.badRequest()
-					.body(new GasEstimateResponseDTO("Contract ID is required", null));
+					.body(new GasEstimateResponseDTO("Contract ID is required", null, null, null));
 		}
 		try {
 			log.info("Estimating gas for contract id: {}", request.getContractId());
-			BigDecimal gas = contractService.estimateGasForDeployment(
+			return ResponseEntity.ok(contractService.estimateGasForDeployment(
 					request.getContractId(),
 					request.getConstructorParams(),
 					request.getDeployerWalletAddress()
-			);
-			return ResponseEntity.ok(new GasEstimateResponseDTO("OK", gas));
+			));
 		} catch (ContractNotFoundException | UnauthorizedAccessException e) {
 			log.warn("Unauthorized or contract not found: {}", e.getMessage());
 			return ResponseEntity.status(403)
-					.body(new GasEstimateResponseDTO(e.getMessage(), null));
+					.body(new GasEstimateResponseDTO(e.getMessage(), null, null, null));
 		} catch (InvalidContractBinaryException | IllegalStateException e) {
 			log.warn("Invalid contract state or data: {}", e.getMessage());
 			return ResponseEntity.badRequest()
-					.body(new GasEstimateResponseDTO(e.getMessage(), null));
+					.body(new GasEstimateResponseDTO(e.getMessage(), null, null, null));
 		} catch (GasEstimationFailedException e) {
 			log.error("Gas estimation failed", e);
 			return ResponseEntity.internalServerError()
-					.body(new GasEstimateResponseDTO("Error estimating gas: " + e.getMessage(), null));
+					.body(new GasEstimateResponseDTO("Error estimating gas: " + e.getMessage(), null, null, null));
 		}
 	}
 
@@ -157,9 +156,37 @@ public class EthereumController {
 			return ResponseEntity.badRequest().build();
 		}
 		try {
-			boolean confirmed = ethereumService.isContractConfirmed(address);
-			if(confirmed) contractService.updateContractStatusToConfirmed(address);
+			boolean confirmed = ethereumService.doesSmartContractExist(address);
+			if(confirmed) contractService.updateContractStatus(address, CONFIRMED);
 			return ResponseEntity.ok(confirmed);
+		} catch (InvalidEthereumAddressException e) {
+			log.warn("Invalid contract address: {}", e.getMessage());
+			return ResponseEntity.badRequest().build();
+		} catch (EthereumConnectionException e) {
+			log.error("Failed to check contract confirmation for address {}", address, e);
+			return ResponseEntity.internalServerError().build();
+		}
+	}
+
+	@Operation(summary = "Check if contract is terminated (self-destructed)",
+			description = "Returns true if the Ethereum contract is terminated at the address.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Termination status returned"),
+			@ApiResponse(responseCode = "400", description = "Invalid Ethereum address"),
+			@ApiResponse(responseCode = "500", description = "Failed to check termination status")
+	})
+	@GetMapping("/{address}/terminated")
+	public ResponseEntity<Boolean> isContractTerminated(
+			@Parameter(description = "Ethereum contract address to check", required = true)
+			@PathVariable String address) {
+		if (address == null || address.isBlank()) {
+			log.warn("Check contract terminated called with empty address");
+			return ResponseEntity.badRequest().build();
+		}
+		try {
+			boolean terminated = !ethereumService.doesSmartContractExist(address);
+			if(terminated) contractService.updateContractStatus(address, TERMINATED);
+			return ResponseEntity.ok(terminated);
 		} catch (InvalidEthereumAddressException e) {
 			log.warn("Invalid contract address: {}", e.getMessage());
 			return ResponseEntity.badRequest().build();
@@ -225,16 +252,16 @@ public class EthereumController {
 			})
 	@PostMapping("/{address}/invoke")
 	public ResponseEntity<String> invokeContractFunction(@PathVariable String address,
-	                                                     @RequestBody ContractFunctionRequestDTO request) {
+														 @RequestBody ContractFunctionRequestDTO request) {
 		try {
 			String txHash = ethereumService.invokeFunction(
 					address,
-					request.getAbi(),
 					request.getFunctionName(),
 					request.getParams(),
-					request.getValueWei(),
+					new BigInteger(request.getValueWei()),
 					walletService.loadCredentials(request.getRequestedByWalletAddress())
 			);
+
 			return ResponseEntity.ok(txHash);
 		} catch (InvalidEthereumAddressException e) {
 			return ResponseEntity.badRequest().body("Invalid address: " + e.getMessage());
@@ -245,17 +272,8 @@ public class EthereumController {
 		}
 	}
 
-	@PostMapping("/parties-balances")
-	@Operation(summary = "Get balances of all public address-type variables in a contract")
-	public ResponseEntity<List<PartyBalanceDto>> getPartiesBalances(
-			@RequestBody ContractPartiesBalanceRequest request) {
-		try {
-			return ResponseEntity.ok(ethereumService.getContractPartiesBalances(request));
-		} catch (ContractReadException e) {
-			return ResponseEntity.status(404).build();
-		} catch (Exception e) {
-			return ResponseEntity.status(500).build();
-		}
+	@PostMapping("/resolve-addresses")
+	public ResponseEntity<ContractAddressGettersResponseDTO> resolveAddresses(@RequestBody ContractAddressGettersRequestDTO req) {
+		return ResponseEntity.ok(new ContractAddressGettersResponseDTO(ethereumService.resolveAddressGetters(req.getContractAddress(), req.getGetterFunctions())));
 	}
-
 }

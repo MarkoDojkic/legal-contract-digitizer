@@ -19,4 +19,6 @@ public class ContractFunctionRequestDTO {
 	List<Object> params;
 
 	BigInteger valueWei;
+
+	String requestedByWalletAddress;
 }

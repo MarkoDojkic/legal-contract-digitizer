@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      spacing="10"
+      alignment="CENTER"
+      styleClass="main-window content-area"
+      prefWidth="600" prefHeight="400">
+
+    <Label text="Ethereum Wallet Manager" styleClass="title-label"/>
+
+    <HBox spacing="10">
+        <TextField fx:id="walletLabelField" promptText="Enter wallet label" prefWidth="300"/>
+        <Button text="Register Wallet" fx:id="registerButton" styleClass="btn-primary"/>
+    </HBox>
+
+    <TableView fx:id="walletTable" prefHeight="300">
+        <columns>
+            <TableColumn fx:id="labelColumn" text="Label" prefWidth="100"/>
+            <TableColumn fx:id="addressColumn" text="Address" prefWidth="300"/>
+            <TableColumn fx:id="balanceColumn" text="Balance" prefWidth="300"/>
+            <TableColumn fx:id="actionColumn" prefWidth="50"/>
+        </columns>
+    </TableView>
+</VBox>

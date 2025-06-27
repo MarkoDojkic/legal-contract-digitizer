@@ -12,15 +12,18 @@ import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.enums_records.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
 import dev.markodojkic.legalcontractdigitizer.service.AIService;
-import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
+import dev.markodojkic.legalcontractdigitizer.service.IEthereumService;
 import dev.markodojkic.legalcontractdigitizer.service.IContractService;
 import dev.markodojkic.legalcontractdigitizer.service.TokenAuthService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.web3j.crypto.Credentials;
+import org.web3j.utils.Convert;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,9 +45,10 @@ public class ContractServiceImpl implements IContractService {
 	public static final String STATUS = "status";
 	public static final String EXTRACTED_CLAUSES = "extractedClauses";
 	public static final String CONTRACTS = "contracts";
+	private final ObjectMapper objectMapper;
 	private final TokenAuthService authService;
 	private final AIService aiService;
-	private final EthereumService ethereumService;
+	private final IEthereumService ethereumService;
 	private Firestore firestore;
 
 	@PostConstruct
@@ -282,7 +286,7 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
-	public String deployContractWithParams(String contractId, List<Object> constructorParams)
+	public String deployContractWithParams(String contractId, List<Object> constructorParams, Credentials credentials)
 			throws ContractNotFoundException, UnauthorizedAccessException,
 			IllegalStateException, InvalidContractBinaryException, DeploymentFailedException {
 
@@ -290,7 +294,8 @@ public class ContractServiceImpl implements IContractService {
 
 		String contractAddress = ethereumService.deployCompiledContract(
 				context.ethContext().contractBinary(),
-				context.ethContext().encodedConstructor()
+				context.ethContext().encodedConstructor(),
+				credentials
 		);
 
 		context.contractRef().update(
@@ -305,18 +310,19 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
-	public BigInteger estimateGasForDeployment(String contractId, List<Object> constructorParams)
+	public BigDecimal estimateGasForDeployment(String contractId, List<Object> constructorParams, String deployerWalletAddress)
 			throws ContractNotFoundException, UnauthorizedAccessException,
 			IllegalStateException, InvalidContractBinaryException, GasEstimationFailedException {
 
 		ContractDeploymentContext context = prepareDeploymentContext(contractId, constructorParams);
 
-		BigInteger estimatedGas = ethereumService.estimateGasForDeployment(
+		BigDecimal estimatedGas = Convert.fromWei(new BigDecimal(ethereumService.estimateGasForDeployment(
 				context.ethContext().contractBinary(),
-				context.ethContext().encodedConstructor()
-		);
+				context.ethContext().encodedConstructor(),
+				deployerWalletAddress
+		)), Convert.Unit.ETHER);
 
-		log.info("Estimated gas for contract {}: {}", contractId, estimatedGas);
+		log.info("Estimated gas for contract {}: {} Sepolia ETH", contractId, estimatedGas);
 		return estimatedGas;
 	}
 
@@ -400,8 +406,7 @@ public class ContractServiceImpl implements IContractService {
 				throw new SolidityGenerationException("Solidity compilation failed: " + err, null);
 			}
 
-			ObjectMapper mapper = new ObjectMapper();
-			JsonNode root = mapper.readTree(output);
+			JsonNode root = objectMapper.readTree(output);
 			JsonNode contractsNode = root.path(CONTRACTS);
 			if (contractsNode.isEmpty()) {
 				throw new SolidityGenerationException("No contracts found in compilation output", null);

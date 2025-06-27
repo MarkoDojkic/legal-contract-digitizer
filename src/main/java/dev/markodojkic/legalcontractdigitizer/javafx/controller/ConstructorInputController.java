@@ -5,11 +5,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
+import dev.markodojkic.legalcontractdigitizer.dto.WalletInfo;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import lombok.Getter;
 import lombok.Setter;
@@ -29,35 +27,56 @@ public class ConstructorInputController implements WindowAwareController {
     private VBox dynamicFieldsBox;
 
     private final List<String> paramTypes = new ArrayList<>();
-    private final List<TextField> paramFields = new ArrayList<>();
+    private final List<ComboBox<WalletInfo>> paramFields = new ArrayList<>();
     private List<Object> collectedParams = null;
+
+    @Setter
+    private List<WalletInfo> walletInfos;
 
     public void loadConstructorInputs(String abiJson) {
         Gson gson = new Gson();
         Type listType = new TypeToken<List<JsonObject>>() {}.getType();
         List<JsonObject> abiList = gson.fromJson(abiJson, listType);
 
+        // Always add deployer address as the first parameter (required)
+        Label deployerLabel = new Label("Select deployer address");
+        ComboBox<WalletInfo> deployerDropdown = new ComboBox<>();
+        deployerDropdown.getItems().addAll(walletInfos);
+        deployerDropdown.setPromptText("Choose deployer address");
+
+        // Add deployer to the parameter list (dynamically inferred type)
+        paramTypes.add("address");  // Since deployer is an address, we add it dynamically
+        paramFields.add(deployerDropdown);
+
+        VBox deployerFieldBox = new VBox(deployerLabel, deployerDropdown);
+        deployerFieldBox.setSpacing(4);
+        dynamicFieldsBox.getChildren().add(deployerFieldBox);
+
+        // Now, process constructor inputs dynamically based on ABI
         for (JsonObject item : abiList) {
             if ("constructor".equals(item.get("type").getAsString())) {
                 JsonArray inputs = item.getAsJsonArray("inputs");
 
                 for (JsonElement inputElem : inputs) {
                     JsonObject param = inputElem.getAsJsonObject();
-                    String type = param.get("type").getAsString();
                     String name = param.get("name").getAsString();
+                    String type = param.get("type").getAsString(); // Get the type dynamically from ABI
 
-                    Label label = new Label(name + " (" + type + ")");
-                    TextField field = new TextField();
-                    field.setPromptText("Enter " + name + " (" + type + ")");
+                    // Create label and ComboBox for wallet selection
+                    Label label = new Label("Select wallet for " + name);
 
-                    paramTypes.add(type);
-                    paramFields.add(field);
+                    ComboBox<WalletInfo> walletDropdown = new ComboBox<>();
+                    walletDropdown.getItems().addAll(walletInfos);
+                    walletDropdown.setPromptText("Choose wallet");
 
-                    VBox fieldBox = new VBox(label, field);
+                    paramTypes.add(type);  // Dynamically add the correct type for other params
+                    paramFields.add(walletDropdown);
+
+                    VBox fieldBox = new VBox(label, walletDropdown);
                     fieldBox.setSpacing(4);
                     dynamicFieldsBox.getChildren().add(fieldBox);
                 }
-                break;
+                break; // Only process the first constructor in the ABI (if there are multiple)
             }
         }
     }
@@ -66,11 +85,18 @@ public class ConstructorInputController implements WindowAwareController {
     private void onConfirm() {
         try {
             List<Object> result = new ArrayList<>();
-            for (int i = 0; i < paramTypes.size(); i++) {
+
+            // Always add deployer address as the first parameter (selected by the user)
+            String deployerAddress = paramFields.get(0).getValue().getAddress();
+            result.add(parseParam(paramTypes.get(0), deployerAddress)); // Use dynamic type for deployer address
+
+            // Collect other parameters selected by the user
+            for (int i = 1; i < paramTypes.size(); i++) {
                 String type = paramTypes.get(i);
-                String rawValue = paramFields.get(i).getText().trim();
-                result.add(parseParam(type, rawValue));
+                String address = paramFields.get(i).getValue().getAddress();
+                result.add(parseParam(type, address));
             }
+
             collectedParams = result;
 
             windowController.getCloseBtn().fire();
@@ -92,7 +118,7 @@ public class ConstructorInputController implements WindowAwareController {
 
     private Object parseParam(String type, String value) {
         return switch (type) {
-            case "address" -> value; // validate address format if needed
+            case "address" -> value; // Address is treated as a string
             case "uint256", "uint", "int", "int256" -> new java.math.BigInteger(value);
             case "bool" -> Boolean.parseBoolean(value);
             case "string" -> value;

@@ -25,7 +25,6 @@ import java.util.List;
 @Component
 @Slf4j
 public class ContractPartiesBalancesController implements WindowAwareController {
-	@Getter
 	@Setter
 	private JavaFXWindowController windowController;
 
@@ -37,16 +36,19 @@ public class ContractPartiesBalancesController implements WindowAwareController 
 	@FXML private Button refreshBtn;
 
 	@Setter private DigitalizedContract contract;
-	private final WindowLauncher windowLauncher;
 	private final String baseUrl;
 	private final String etherscanUrl;
+	private final WindowLauncher windowLauncher;
+	private final HttpClientUtil httpClientUtil;
 
+	@Autowired
 	public ContractPartiesBalancesController(@Value("${server.port}") Integer serverPort,
 	                                 @Value("${ethereum.etherscan.url}") String etherscanUrl,
-	                                 @Autowired WindowLauncher windowLauncher){
+	                                 WindowLauncher windowLauncher, HttpClientUtil httpClientUtil){
 		this.baseUrl = String.format("http://localhost:%s/api/v1/ethereum", serverPort);
 		this.etherscanUrl = etherscanUrl;
 		this.windowLauncher = windowLauncher;
+		this.httpClientUtil = httpClientUtil;
 	}
 
 	@FXML
@@ -72,7 +74,7 @@ public class ContractPartiesBalancesController implements WindowAwareController 
 					PartyBalanceDto party = getTableView().getItems().get(getIndex());
 					windowLauncher.launchWebViewWindow(
 							new Stage(),
-							"Smart Contract view on Blockchain - " + contract.id(),
+							"Selected party address view on Blockchain - " + contract.id(),
 							1024,
 							1024,
 							String.format("%s/address/%s", etherscanUrl, party.getAddress())
@@ -95,7 +97,7 @@ public class ContractPartiesBalancesController implements WindowAwareController 
 					.abi(contract.abi())
 					.build();
 
-			ResponseEntity<PartyBalanceDto[]> response = HttpClientUtil.post(
+			ResponseEntity<PartyBalanceDto[]> response =  httpClientUtil.post(
 					baseUrl + "/parties-balances",
 					null,
 					request,

@@ -14,4 +14,5 @@ import java.util.List;
 public class DeploymentRequestDTO {
 	private String contractId;
 	private List<Object> constructorParams;
+	private String deployerWalletAddress;
 }

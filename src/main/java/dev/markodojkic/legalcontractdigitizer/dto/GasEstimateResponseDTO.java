@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
@@ -13,5 +13,5 @@ import java.math.BigInteger;
 @Builder
 public class GasEstimateResponseDTO {
 	private String message;
-	private BigInteger gas;
+	private BigDecimal gas;
 }

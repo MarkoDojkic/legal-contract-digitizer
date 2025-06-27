@@ -2,19 +2,19 @@ package dev.markodojkic.legalcontractdigitizer.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+@Component
 public class HttpClientUtil {
-
-	private HttpClientUtil() {
-		throw new UnsupportedOperationException("Utility class should not be instantiated");
-	}
 
 	private static final OkHttpClient client = new OkHttpClient.Builder()
 			.connectTimeout(60, TimeUnit.SECONDS)
@@ -22,7 +22,12 @@ public class HttpClientUtil {
 			.writeTimeout(60, TimeUnit.SECONDS)
 			.build();
 
-	private static final ObjectMapper mapper = new ObjectMapper();
+	private final ObjectMapper objectMapper;
+
+	@Autowired
+	public HttpClientUtil(ObjectMapper objectMapper) {
+		this.objectMapper = objectMapper;
+	}
 
 	private static Headers buildHeaders(HttpHeaders customHeaders) {
 		HttpHeaders authHeaders = AuthSession.createAuthHeaders();
@@ -41,29 +46,39 @@ public class HttpClientUtil {
 	}
 
 	// Generic request helper (internal)
-	private static <T> ResponseEntity<T> sendRequest(
+	private <T> ResponseEntity<T> sendRequest(
 			Request request,
-			Class<T> responseType
+			Type responseType
 	) throws IOException {
 		try (Response response = client.newCall(request).execute()) {
 			String responseBody = response.body() != null ? response.body().string() : null;
 			T bodyObj = null;
+
 			if (responseBody != null && !responseBody.isEmpty() && responseType != Void.class) {
 				if (responseType == String.class) {
 					bodyObj = (T) responseBody;
 				} else {
-					bodyObj = mapper.readValue(responseBody, responseType);
+					// If the responseType is an array type, use TypeReference to handle it correctly
+					if (responseType instanceof Class && ((Class<?>) responseType).isArray()) {
+						// Deserialize array
+						bodyObj = objectMapper.readValue(responseBody,
+								objectMapper.getTypeFactory().constructArrayType(((Class<?>) responseType).getComponentType()));
+					} else {
+						// For regular objects, use TypeReference or the normal responseType
+						bodyObj = objectMapper.readValue(responseBody, objectMapper.constructType(responseType));
+					}
 				}
 			}
+
 			return new ResponseEntity<>(bodyObj, org.springframework.http.HttpStatus.valueOf(response.code()));
 		}
 	}
 
 	// GET
-	public static <T> ResponseEntity<T> get(
+	public <T> ResponseEntity<T> get(
 			String url,
 			HttpHeaders headers,
-			Class<T> responseType
+			Type responseType
 	) throws IOException {
 		Request request = new Request.Builder()
 				.url(url)
@@ -75,10 +90,10 @@ public class HttpClientUtil {
 	}
 
 	// DELETE
-	public static <T> ResponseEntity<T> delete(
+	public <T> ResponseEntity<T> delete(
 			String url,
 			HttpHeaders headers,
-			Class<T> responseType
+			Type responseType
 	) throws IOException {
 		Request request = new Request.Builder()
 				.url(url)
@@ -90,15 +105,15 @@ public class HttpClientUtil {
 	}
 
 	// POST with JSON body (body can be null)
-	public static <T> ResponseEntity<T> post(
+	public <T> ResponseEntity<T> post(
 			String url,
 			HttpHeaders headers,
 			Object body,
-			Class<T> responseType
+			Type responseType
 	) throws IOException {
 		RequestBody requestBody;
 		if (body != null) {
-			String json = mapper.writeValueAsString(body);
+			String json = objectMapper.writeValueAsString(body);
 			requestBody = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
 		} else {
 			requestBody = RequestBody.create(new byte[0]);
@@ -114,15 +129,15 @@ public class HttpClientUtil {
 	}
 
 	// PATCH with optional JSON body (null body sends empty body)
-	public static <T> ResponseEntity<T> patch(
+	public <T> ResponseEntity<T> patch(
 			String url,
 			HttpHeaders headers,
 			Object body,
-			Class<T> responseType
+			Type responseType
 	) throws IOException {
 		RequestBody requestBody;
 		if (body != null) {
-			String json = mapper.writeValueAsString(body);
+			String json = objectMapper.writeValueAsString(body);
 			requestBody = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
 		} else {
 			requestBody = RequestBody.create(new byte[0]);
@@ -138,12 +153,12 @@ public class HttpClientUtil {
 	}
 
 	// POST with File upload (multipart/form-data)
-	public static <T> ResponseEntity<T> postWithFile(
+	public <T> ResponseEntity<T> postWithFile(
 			String url,
 			HttpHeaders headers,
 			String formFieldName,
 			File file,
-			Class<T> responseType
+			Type responseType
 	) throws IOException {
 		MediaType mediaType = MediaType.parse("application/octet-stream");
 		RequestBody fileBody = RequestBody.create(file, mediaType);

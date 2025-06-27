@@ -8,6 +8,7 @@ import dev.markodojkic.legalcontractdigitizer.exception.CompilationException;
 import dev.markodojkic.legalcontractdigitizer.exception.ContractNotFoundException;
 import dev.markodojkic.legalcontractdigitizer.exception.SolidityGenerationException;
 import dev.markodojkic.legalcontractdigitizer.service.FileTextExtractorService;
+import dev.markodojkic.legalcontractdigitizer.service.IContractService;
 import dev.markodojkic.legalcontractdigitizer.service.impl.ContractServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -29,7 +30,7 @@ import java.util.List;
 @Slf4j
 public class ContractController {
 
-	private final ContractServiceImpl contractService;
+	private final IContractService contractService;
 	private final FileTextExtractorService fileTextExtractorService;
 
 	@Operation(summary = "Upload a contract file")

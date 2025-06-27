@@ -5,13 +5,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigInteger;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class GasEstimateResponseDTO {
-	private String message;
-	private BigInteger gasPrice, gasLimit, totalCost;
+public class ContractAddressGettersResponseDTO {
+    private Map<String, String> resolvedAddresses;
 }

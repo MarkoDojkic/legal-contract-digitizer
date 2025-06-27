@@ -5,13 +5,13 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigInteger;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class GasEstimateResponseDTO {
-	private String message;
-	private BigInteger gasPrice, gasLimit, totalCost;
+public class ContractAddressGettersRequestDTO {
+    private String contractAddress;
+    private List<String> getterFunctions;
 }

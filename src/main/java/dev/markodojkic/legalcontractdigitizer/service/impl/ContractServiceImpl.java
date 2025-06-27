@@ -6,6 +6,7 @@ import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import dev.markodojkic.legalcontractdigitizer.dto.CompilationResultDTO;
+import dev.markodojkic.legalcontractdigitizer.dto.GasEstimateResponseDTO;
 import dev.markodojkic.legalcontractdigitizer.enums_records.ContractDeploymentContext;
 import dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
@@ -118,7 +119,7 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
-	public void updateContractStatusToConfirmed(String deploymentAddress)
+	public void updateContractStatus(String deploymentAddress, ContractStatus newStatus)
 			throws ContractNotFoundException, IllegalStateException, IllegalArgumentException {
 
 		// Query contract by deployedAddress
@@ -141,15 +142,9 @@ public class ContractServiceImpl implements IContractService {
 		DocumentSnapshot snapshot = querySnapshot.getDocuments().getFirst();
 		DocumentReference docRef = snapshot.getReference();
 
-		ContractStatus currentStatus = ContractStatus.valueOf(snapshot.getString(STATUS));
+		docRef.update(STATUS, newStatus.name());
 
-		if (currentStatus == ContractStatus.DEPLOYED) {
-			docRef.update(STATUS, ContractStatus.CONFIRMED.name());
-			log.info("Updated contract status to CONFIRMED for deployment address: {}", deploymentAddress);
-		} else {
-			log.warn("Cannot update status to CONFIRMED, current status is: {}", currentStatus);
-			throw new IllegalStateException("Contract is not in a deployable state");
-		}
+		log.info("Updated contract status to {} for deployment address: {}", newStatus.name(), deploymentAddress);
 	}
 
 	@Override
@@ -157,7 +152,7 @@ public class ContractServiceImpl implements IContractService {
 		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
 
-		if (!ContractStatus.valueOf(snapshot.getString(STATUS)).equals(ContractStatus.CONFIRMED)) {
+		if (ContractStatus.valueOf(snapshot.getString(STATUS)).compareTo(ContractStatus.CONFIRMED) < 0) {
 			docRef.delete();
 			log.info("Deleted contract with ID {}", contractId);
 		} else {
@@ -310,20 +305,24 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
-	public BigDecimal estimateGasForDeployment(String contractId, List<Object> constructorParams, String deployerWalletAddress)
+	public GasEstimateResponseDTO estimateGasForDeployment(String contractId, List<Object> constructorParams, String deployerWalletAddress)
 			throws ContractNotFoundException, UnauthorizedAccessException,
 			IllegalStateException, InvalidContractBinaryException, GasEstimationFailedException {
 
 		ContractDeploymentContext context = prepareDeploymentContext(contractId, constructorParams);
-
-		BigDecimal estimatedGas = Convert.fromWei(new BigDecimal(ethereumService.estimateGasForDeployment(
+		List<BigInteger> gas = ethereumService.estimateGasForDeployment(
 				context.ethContext().contractBinary(),
 				context.ethContext().encodedConstructor(),
 				deployerWalletAddress
-		)), Convert.Unit.ETHER);
+		);
 
-		log.info("Estimated gas for contract {}: {} Sepolia ETH", contractId, estimatedGas);
-		return estimatedGas;
+		String formatted = String.format("Estimated gas: %,d units (≈ %.6f Sepolia ETH)", gas.get(0), Convert.fromWei(new BigDecimal(gas.get(0).multiply(gas.get(1))), Convert.Unit.ETHER));
+		log.info(formatted);
+		return GasEstimateResponseDTO.builder()
+				.gasLimit(gas.get(0))
+				.gasPrice(gas.get(1))
+				.totalCost(gas.get(0).multiply(gas.get(1)))
+				.build();
 	}
 
 	// === Helper methods ===

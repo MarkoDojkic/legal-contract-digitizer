@@ -123,8 +123,8 @@ public class MainController implements WindowAwareController {
         windowLauncher.launchWindow(
                 new Stage(),
                 "Legal contract digitizer - Ethereum wallets manager",
-                1024,
-                800,
+                850,
+                500,
                 "/layout/wallet_manager.fxml",
                 null,
                 applicationContext.getBean(WalletManagerController.class)
@@ -197,7 +197,8 @@ public class MainController implements WindowAwareController {
                     }
                     case SOLIDITY_GENERATED,
                          DEPLOYED,
-                         CONFIRMED -> {
+                         CONFIRMED,
+                         TERMINATED -> {
                         nextStepBtn.setText("Ethereum Actions");
                         nextStepBtn.getStyleClass().add("btn-action");
                         nextStepBtn.setOnAction(e -> {
@@ -219,7 +220,7 @@ public class MainController implements WindowAwareController {
 
                 if (getTableView().getItems().get(getIndex()).status().compareTo(CLAUSES_EXTRACTED) >= 0) container.getChildren().add(viewClausesBtn);
                 if (getTableView().getItems().get(getIndex()).status().compareTo(SOLIDITY_PREPARED) >= 0) container.getChildren().add(viewSolidityBtn);
-                if (!getTableView().getItems().get(getIndex()).status().equals(CONFIRMED)) container.getChildren().add(deleteBtn);
+                if (getTableView().getItems().get(getIndex()).status().compareTo(CONFIRMED) < 0) container.getChildren().add(deleteBtn);
 
                 setGraphic(container);
             }

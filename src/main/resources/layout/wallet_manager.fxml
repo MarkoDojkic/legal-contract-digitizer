@@ -20,9 +20,9 @@
     <TableView fx:id="walletTable" prefHeight="300">
         <columns>
             <TableColumn fx:id="labelColumn" text="Label" prefWidth="100"/>
-            <TableColumn fx:id="addressColumn" text="Address" prefWidth="300"/>
-            <TableColumn fx:id="balanceColumn" text="Balance" prefWidth="300"/>
-            <TableColumn fx:id="actionColumn" prefWidth="50"/>
+            <TableColumn fx:id="addressColumn" text="Address" prefWidth="400"/>
+            <TableColumn fx:id="balanceColumn" text="Balance" prefWidth="250"/>
+            <TableColumn fx:id="actionColumn" prefWidth="40"/>
         </columns>
     </TableView>
 </VBox>

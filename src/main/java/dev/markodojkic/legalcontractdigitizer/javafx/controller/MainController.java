@@ -2,7 +2,6 @@ package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
 import dev.markodojkic.legalcontractdigitizer.dto.UploadResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
@@ -45,23 +44,27 @@ public class MainController implements WindowAwareController {
     @FXML private Button uploadBtn;
     @FXML private Button refreshBtn;
     @FXML private Button logoutBtn;
+    @FXML private Button walletsManagerBtn;
 
     @FXML private TableView<DigitalizedContract> contractsTable;
     @FXML private TableColumn<DigitalizedContract, String> idCol;
     @FXML private TableColumn<DigitalizedContract, Void> actionCol;
     @FXML private TableColumn<DigitalizedContract, String> statusCol;
 
+    private final HttpClientUtil httpClientUtil;
     private final WindowLauncher windowLauncher;
     private final ApplicationContext applicationContext;
-    private String baseUrl;
+    private final String baseUrl;
 
     @Setter
     private Map<String, String> userData;
 
+    @Autowired
     public MainController(@Value("${server.port}") Integer serverPort,
-                          @Autowired WindowLauncher windowLauncher,
-                          @Autowired ApplicationContext applicationContext){
+                          WindowLauncher windowLauncher, HttpClientUtil httpClientUtil,
+                          ApplicationContext applicationContext){
         this.baseUrl = String.format("http://localhost:%s/api/v1/contracts", serverPort);
+        this.httpClientUtil = httpClientUtil;
         this.windowLauncher = windowLauncher;
         this.applicationContext = applicationContext;
     }
@@ -80,7 +83,7 @@ public class MainController implements WindowAwareController {
             Stage stage = new Stage();
             windowLauncher.launchFilePickerWindow(stage, "Upload New Contract", 400, 200, file -> {
                 try {
-                    ResponseEntity<UploadResponseDTO> response = HttpClientUtil.postWithFile(
+                    ResponseEntity<UploadResponseDTO> response = httpClientUtil.postWithFile(
                             baseUrl + "/upload",
                             null,
                             "file",
@@ -99,7 +102,7 @@ public class MainController implements WindowAwareController {
                 }
             });
         });
-
+        walletsManagerBtn.setOnAction(e -> openWalletsManager());
         refreshBtn.setOnAction(e -> refreshContracts());
         logoutBtn.setOnAction(e -> {
             try {
@@ -114,6 +117,18 @@ public class MainController implements WindowAwareController {
             });
         });
         refreshContracts(); // auto-load
+    }
+
+    private void openWalletsManager() {
+        windowLauncher.launchWindow(
+                new Stage(),
+                "Legal contract digitizer - Ethereum wallets manager",
+                1024,
+                800,
+                "/layout/wallet_manager.fxml",
+                null,
+                applicationContext.getBean(WalletManagerController.class)
+        );
     }
 
     private void setupActionColumn() {
@@ -153,7 +168,7 @@ public class MainController implements WindowAwareController {
                 deleteBtn.setOnAction(e -> {
                     String url = baseUrl + "/" + getTableView().getItems().get(getIndex()).id();
                     try {
-                        ResponseEntity<Void> response = HttpClientUtil.delete(url, null, Void.class);
+                        ResponseEntity<Void> response = httpClientUtil.delete(url, null, Void.class);
                         if (response.getStatusCode().is2xxSuccessful()) {
                             contractsTable.getItems().remove(getTableView().getItems().get(getIndex()));
                             refreshContracts();
@@ -245,7 +260,7 @@ public class MainController implements WindowAwareController {
         String url = baseUrl + "/list?userId=" + userId;
 
         try {
-            ResponseEntity<DigitalizedContract[]> response = HttpClientUtil.get(url, null, DigitalizedContract[].class);
+            ResponseEntity<DigitalizedContract[]> response = httpClientUtil.get(url, null, DigitalizedContract[].class);
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 DigitalizedContract[] contracts = response.getBody();
@@ -277,7 +292,7 @@ public class MainController implements WindowAwareController {
 
         try {
             // Empty body for PATCH can be null or empty map depending on your implementation
-            ResponseEntity<Void> response = HttpClientUtil.patch(url, null, null, Void.class);
+            ResponseEntity<Void> response = httpClientUtil.patch(url, null, null, Void.class);
 
             if (response.getStatusCode().is2xxSuccessful() || contract.status().equals(CLAUSES_EXTRACTED)) {
                 refreshContracts();

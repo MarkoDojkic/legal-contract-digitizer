@@ -80,7 +80,7 @@ public class WindowLauncher {
             Parent contentRoot = contentLoader.load();
 
             swc.controller.getContentArea().getChildren().setAll(contentRoot);
-            swc.scene.getStylesheets().add(contentCSS);
+            if(contentCSS != null) swc.scene.getStylesheets().add(contentCSS);
 
             return contentLoader.getController();
         } catch (IOException e) {

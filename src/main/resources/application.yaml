@@ -9,8 +9,8 @@ spring:
 ethereum:
   rpc:
     url: ${ETH_RPC_URL:https://sepolia.infura.io/v3/${INFURA_PROJECT_ID}}
-  private:
-    key: "${ETH_PRIVATE_KEY}"
+  walletKeystore:
+    password: "${ETH_WALLET_KEYSTORE_PASSWORD}"
   chain:
     id: ${ETH_CHAIN_ID:11155111}  # Defaults to Sepolia testnet chain id
   etherscan:

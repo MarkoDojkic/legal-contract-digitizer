@@ -1,6 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Component
+@RequiredArgsConstructor
 public class HttpClientUtil {
 
 	private static final OkHttpClient client = new OkHttpClient.Builder()
@@ -23,11 +25,6 @@ public class HttpClientUtil {
 			.build();
 
 	private final ObjectMapper objectMapper;
-
-	@Autowired
-	public HttpClientUtil(ObjectMapper objectMapper) {
-		this.objectMapper = objectMapper;
-	}
 
 	private static Headers buildHeaders(HttpHeaders customHeaders) {
 		HttpHeaders authHeaders = AuthSession.createAuthHeaders();

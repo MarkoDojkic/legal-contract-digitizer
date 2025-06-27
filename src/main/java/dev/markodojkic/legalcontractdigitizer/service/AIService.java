@@ -53,36 +53,48 @@ public class AIService {
 			promptBuilder.append("- ").append(clause).append("\n");
 		}
 
-		// Specify the version to be 0.8.8 or higher
+		// Solidity version
 		promptBuilder.append("\nEnsure the Solidity version is `^0.8.8` or higher for compatibility with the latest Solidity compiler.\n");
 
-		// Define contract creator as payable(msg.sender) directly, outside the constructor
-		promptBuilder.append("\nAt least one payable, i.e. the contract creator or mediator should be defined as `address payable` and initialized as `payable(msg.sender)` but **should not** be included in the constructor. Other participants should be specified for the user to populate when deploying the contract to the blockchain.\n");
+		// Define payable creator
+		promptBuilder.append("\nDefine at least one payable address (e.g., the contract creator or mediator) initialized as `address payable` with `payable(msg.sender)`, but do not include it as a constructor argument.\n");
 
-		// Ensure that monetary values are expressed in Ether
-		promptBuilder.append("\nAll monetary values (totalAmount, payments, etc.) should be in Ether (use 'ether' unit).\n");
+		// Monetary values in Ether
+		promptBuilder.append("\nExpress all monetary values in Ether units (e.g., `1 ether`).\n");
 
-		// If self-destruction is allowed, include the selfdestruct function
+		// Contract safety and architecture
+		promptBuilder.append("\nThe contract must include the following best practices and features:\n");
+		promptBuilder.append("- Separate contract termination logic from core business functions.\n");
+		promptBuilder.append("- Prevent multiple executions of the same state-changing functions under the same conditions.\n");
+		promptBuilder.append("- Use access control modifiers to restrict function execution.\n");
+		promptBuilder.append("- Log important state changes with events.\n");
+		promptBuilder.append("- Correctly handle payments with necessary checks.\n");
+
+		// Always include a normal selfdestruct function
+		promptBuilder.append("\nInclude a normal contract cleanup function that allows self-destruction after contract completion or termination conditions are met.\n");
+		promptBuilder.append("This function should transfer remaining balance to an appropriate party (e.g., the deployer or client).\n");
+		promptBuilder.append("Access to this cleanup function should be properly restricted.\n");
+
+		// Optional forced selfdestruct for emergency
 		if (allowSelfDestruction) {
-			promptBuilder.append("\nThe contract should include a method to remove the contract from the blockchain using `selfdestruct(address payable recipient)`.\n");
+			promptBuilder.append("\nAdditionally, include a forced selfdestruct function callable only by the deployer at any time to remove the contract and transfer funds to the deployer.\n");
 		}
 
-		// Provide guidelines to the AI about what the contract should include
-		promptBuilder.append("\nThe contract should include the necessary functions such as:\n");
+		// Expected functions
+		promptBuilder.append("\nThe contract should include necessary functions such as:\n");
 		promptBuilder.append("- Payments between parties\n");
-		promptBuilder.append("- Confirmations (e.g., service provided)\n");
-		promptBuilder.append("- Contract termination functionality\n");
-		promptBuilder.append("- Optionally, include penalty logic if defined in clauses.\n");
+		promptBuilder.append("- Confirmations or acknowledgments of services or conditions\n");
+		promptBuilder.append("- Contract termination and cleanup functionality\n");
+		promptBuilder.append("- Optional penalty logic if specified in the clauses.\n");
 
-		// Request the Solidity code without markdown or backticks
-		promptBuilder.append("\nReturn ONLY the Solidity code without markdown or backticks. Ensure the Solidity contract follows the clauses accurately, without including any unnecessary logic or modifications.\n");
+		// Only Solidity code no markdown/backticks
+		promptBuilder.append("\nReturn ONLY the Solidity code without markdown or backticks. Ensure the code follows the clauses and includes described safety and destruct patterns.\n");
 
 		String prompt = promptBuilder.toString();
 
 		try {
-			// Send the prompt to the AI and get the generated Solidity code
 			String rawSolidity = sendChatRequest(prompt);
-			return sanitizeSolidityCode(rawSolidity);  // Assuming sanitizeSolidityCode is a method for cleaning up output
+			return sanitizeSolidityCode(rawSolidity);
 		} catch (Exception e) {
 			log.error("Failed to generate Solidity contract", e);
 			return "";

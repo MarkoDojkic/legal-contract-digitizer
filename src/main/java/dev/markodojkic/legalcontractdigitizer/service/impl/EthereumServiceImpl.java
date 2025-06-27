@@ -1,12 +1,9 @@
 package dev.markodojkic.legalcontractdigitizer.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.markodojkic.legalcontractdigitizer.dto.ContractPartiesBalanceRequest;
-import dev.markodojkic.legalcontractdigitizer.dto.PartyBalanceDto;
 import dev.markodojkic.legalcontractdigitizer.enums_records.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
 import dev.markodojkic.legalcontractdigitizer.service.IEthereumService;
-import dev.markodojkic.legalcontractdigitizer.util.Web3jUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +16,8 @@ import org.web3j.abi.TypeReference;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Function;
 import org.web3j.abi.datatypes.Type;
+import org.web3j.abi.datatypes.Utf8String;
+import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.crypto.Credentials;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
@@ -34,8 +33,9 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -46,7 +46,7 @@ public class EthereumServiceImpl implements IEthereumService {
 
     private static final Pattern HEX_ADDRESS_PATTERN = Pattern.compile("^0x[0-9a-fA-F]{40}$");
 
-    private ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
     private Web3j web3j;
 
     @Value("${ethereum.rpc.url}")
@@ -77,9 +77,9 @@ public class EthereumServiceImpl implements IEthereumService {
             throw new InvalidContractBinaryException("Contract binary must not be null or empty");
         }
         try {
-            List<Type> abiTypes = Web3jUtil.convertToAbiTypes(constructorParams);
+            List<Type> abiTypes = convertToAbiTypes(constructorParams);
             String encodedConstructor = FunctionEncoder.encodeConstructor(abiTypes);
-            return new EthereumContractContext(binary, encodedConstructor);
+            return new EthereumContractContext(binary, encodedConstructor.replaceFirst("^0x", ""));
         } catch (Exception e) {
             log.error("Failed to build deployment context", e);
             throw new InvalidContractBinaryException("Failed to encode constructor parameters: " + e.getMessage());
@@ -92,20 +92,19 @@ public class EthereumServiceImpl implements IEthereumService {
             throw new DeploymentFailedException("Contract binary must not be null or empty", null);
         }
         if (encodedConstructor == null) {
-            encodedConstructor = "";
+            throw new DeploymentFailedException("Encoded constructor must not be null or empty", null);
         }
 
         try {
             String data = "0x" + binary + encodedConstructor;
 
-            BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
-            BigInteger gasLimit = estimateGasForDeployment(binary, encodedConstructor, credentials.getAddress());
+            List<BigInteger> gas = estimateGasForDeployment(binary, encodedConstructor, credentials.getAddress());
 
-            log.info("Deploying contract with gasPrice={} and gasLimit={}", gasPrice, gasLimit);
+            log.info("Deploying contract with gasLimit={} units and gasPrice={} wei", gas.getFirst(), gas.get(1));
 
             String txHash = new RawTransactionManager(web3j, credentials, chainId).sendTransaction(
-                    gasPrice,
-                    gasLimit,
+                    gas.get(1),
+                    gas.getFirst(),
                     null,
                     data,
                     BigInteger.ZERO
@@ -126,12 +125,12 @@ public class EthereumServiceImpl implements IEthereumService {
     }
 
     @Override
-    public BigInteger estimateGasForDeployment(String binary, String encodedConstructor, String deployerWalletAddress) throws GasEstimationFailedException {
+    public List<BigInteger> estimateGasForDeployment(String binary, String encodedConstructor, String deployerWalletAddress) throws GasEstimationFailedException {
         if (binary == null || binary.isBlank()) {
             throw new GasEstimationFailedException("Contract binary must not be null or empty", null);
         }
         if (encodedConstructor == null) {
-            encodedConstructor = "";
+            throw new GasEstimationFailedException("Encoded constructor must not be null or empty", null);
         }
 
         try {
@@ -140,21 +139,24 @@ public class EthereumServiceImpl implements IEthereumService {
             BigInteger nonce = web3j.ethGetTransactionCount(deployerWalletAddress, DefaultBlockParameterName.PENDING)
                     .send().getTransactionCount();
 
-            BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice().multiply(BigInteger.valueOf(2)); // safety multiplier
 
-            Transaction tx = Transaction.createContractTransaction(deployerWalletAddress, nonce, gasPrice, null, BigInteger.ZERO, data);
+            // Use extracted gas estimation method
+            List<BigInteger> gasEstimation = estimateGas(
+                    deployerWalletAddress,
+                    nonce,
+                    null, // No contract address for deployment
+                    BigInteger.ZERO, // No value sent
+                    data
+            );
 
-            var response = web3j.ethEstimateGas(tx).send();
+            log.info("Estimating gas for deployment with nonce={}, gasPrice={} wei", nonce, gasEstimation.get(1));
 
-            if (response.hasError()) {
-                throw new GasEstimationFailedException("Gas estimation error: " + response.getError().getMessage(), null);
-            }
+            log.info("Estimated gas limit for deployment: {} units", gasEstimation.get(0));
 
-            BigInteger estimatedGas = response.getAmountUsed().multiply(BigInteger.valueOf(2)); // add safety margin
-
-            log.info("Estimated gas for deployment: {} Wei", estimatedGas);
-
-            return estimatedGas;
+            return List.of(
+                    gasEstimation.get(0), // Gas limit with safety margin
+                    gasEstimation.get(1) // Current gas price
+            );
         } catch (GasEstimationFailedException e) {
             throw e;
         } catch (Exception e) {
@@ -164,16 +166,21 @@ public class EthereumServiceImpl implements IEthereumService {
     }
 
     @Override
-    public boolean isContractConfirmed(String contractAddress) throws InvalidEthereumAddressException, EthereumConnectionException {
+    public boolean doesSmartContractExist(String contractAddress)
+            throws InvalidEthereumAddressException, EthereumConnectionException {
         if (!isValidAddress(contractAddress)) {
             throw new InvalidEthereumAddressException("Invalid Ethereum address: " + contractAddress);
         }
+
         try {
             String code = web3j.ethGetCode(contractAddress, DefaultBlockParameterName.LATEST)
                     .send()
                     .getCode();
 
-            return code != null && !code.equals("0x") && !code.isEmpty();
+            log.info("Contract code for {}: {}", contractAddress, code);
+
+            // If contract is self-destructed, code should be "0x" or "0x0"
+            return code != null && !code.equals("0x") && !code.equals("0x0"); //TODO: check since it doesn't work for checking termination (delay or should use another way)
         } catch (Exception e) {
             log.error("Failed to get contract code", e);
             throw new EthereumConnectionException("Failed to check contract confirmation: " + e.getMessage(), e);
@@ -242,52 +249,43 @@ public class EthereumServiceImpl implements IEthereumService {
         }
     }
 
+
+
     @Override
     public String invokeFunction(
             String contractAddress,
-            String abiJson,
             String functionName,
             List<Object> params,
             BigInteger valueWei,
             Credentials credentials) throws InvalidEthereumAddressException, InvalidFunctionCallException, EthereumConnectionException {
+
         if (!isValidAddress(contractAddress)) {
             throw new InvalidEthereumAddressException("Invalid Ethereum address: " + contractAddress);
         }
 
-        var abiDef = Web3jUtil.findFunctionDefinition(abiJson, functionName);
-        if (abiDef == null) {
-            throw new InvalidFunctionCallException("Function '" + functionName + "' not found in ABI");
-        }
-
         try {
-            List<Type> inputTypes = Web3jUtil.convertToAbiTypes(params);
+            List<Type> inputTypes = convertToAbiTypes(params);
             var function = new org.web3j.abi.datatypes.Function(functionName, inputTypes, List.of());
 
             String data = org.web3j.abi.FunctionEncoder.encode(function);
             BigInteger nonce = web3j.ethGetTransactionCount(credentials.getAddress(), DefaultBlockParameterName.PENDING)
                     .send()
                     .getTransactionCount();
-            BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
-            BigInteger gasLimit = web3j.ethEstimateGas(
-                            Transaction.createFunctionCallTransaction(
-                                    credentials.getAddress(),
-                                    nonce,
-                                    gasPrice,
-                                    null,
-                                    contractAddress,
-                                    valueWei == null ? BigInteger.ZERO : valueWei,
-                                    data
-                            )
-                    ).send()
-                    .getAmountUsed()
-                    .multiply(BigInteger.valueOf(2));
+
+            List<BigInteger> gasEstimation = estimateGas(
+                    credentials.getAddress(),
+                    nonce,
+                    contractAddress,
+                    valueWei,
+                    data
+            );
 
             return new RawTransactionManager(web3j, credentials, chainId).sendTransaction(
-                    gasPrice,
-                    gasLimit,
+                    gasEstimation.get(1), // Gas price
+                    gasEstimation.get(0), // Gas limit with safety margin
                     contractAddress,
                     data,
-                    valueWei == null ? BigInteger.ZERO : valueWei
+                    valueWei
             ).getTransactionHash();
 
         } catch (InvalidFunctionCallException e) {
@@ -299,62 +297,118 @@ public class EthereumServiceImpl implements IEthereumService {
     }
 
     @Override
-    public List<PartyBalanceDto> getContractPartiesBalances(ContractPartiesBalanceRequest request) throws ContractReadException {
-        try {
-            List<PartyBalanceDto> result = new ArrayList<>();
+    public Map<String, String> resolveAddressGetters(String contractAddress, List<String> getterFunctions) {
+        Map<String, String> results = new HashMap<>();
+        for (String getter : getterFunctions) {
+            try {
+                Function function = new Function(getter, List.of(), List.of(new TypeReference<Address>() {}));
+                String encodedFunction = FunctionEncoder.encode(function);
 
-            // Add contract balance
-            result.add(PartyBalanceDto.builder()
-                    .roleName("contract")
-                    .address(request.getContractAddress())
-                    .balanceEth(getBalance(request.getContractAddress()))
-                    .build());
+                EthCall response = web3j.ethCall(
+                        Transaction.createEthCallTransaction(
+                                "0x10F5d45854e038071485AC9e402308cF80D2d2fE",
+                                contractAddress,
+                                encodedFunction),
+                        DefaultBlockParameterName.LATEST).send();
 
-            // Parse ABI and find all public address-type variables
-            List<AbiDefinition> abiDefs = Web3jUtil.parseAbi(request.getAbi());
-            for (AbiDefinition def : abiDefs) {
-                if ("function".equals(def.getType())
-                        && def.getInputs().isEmpty()
-                        && def.getOutputs().size() == 1
-                        && "address".equals(def.getOutputs().get(0).getType())) {
+                List<Type> decoded = FunctionReturnDecoder.decode(response.getValue(), function.getOutputParameters());
+                if (!decoded.isEmpty()) {
+                    results.put(getter, decoded.get(0).getValue().toString());
+                }
+            } catch (Exception e) {
+                results.put(getter, "ERROR");
+                log.warn("Error calling getter " + getter, e);
+            }
+        }
+        return results;
+    }
 
-                    String roleName = def.getName();
-                    String address = callAddressGetter(request.getContractAddress(), roleName);
-                    if (address != null && !address.equalsIgnoreCase("0x0000000000000000000000000000000000000000")) {
-                        result.add(PartyBalanceDto.builder()
-                                .roleName(roleName)
-                                .address(address)
-                                .balanceEth(getBalance(address))
-                                .build());
+
+    private List<Type> convertToAbiTypes(List<Object> constructorParams) {
+        List<Type> abiTypes = new ArrayList<>();
+
+        for (Object param : constructorParams) {
+            switch (param) {
+                case String strParam -> {
+                    if (strParam.matches("^0x[a-fA-F0-9]{40}$")) {
+                        // Ethereum address
+                        abiTypes.add(new Address(strParam));
+                    } else if (strParam.matches("^\\d+$")) {
+                        // Numeric string
+                        abiTypes.add(new Uint256(new BigInteger(strParam)));
+                    } else {
+                        // Fallback to string
+                        abiTypes.add(new Utf8String(strParam));
                     }
                 }
+                case Number num -> abiTypes.add(new Uint256(BigInteger.valueOf(num.longValue())));
+                default -> throw new IllegalArgumentException("Unsupported constructor parameter type: " + param);
             }
+        }
 
-            return result;
+        return abiTypes;
+    }
+
+    /**
+     * Parses ABI JSON and returns list of all definitions.
+     */
+    private List<AbiDefinition> parseAbi(String abiJson) {
+        try {
+            return objectMapper.readValue(abiJson, new com.fasterxml.jackson.core.type.TypeReference<>() {});
         } catch (Exception e) {
-            throw new ContractReadException("Failed to read contract parties and balances", e);
+            throw new InvalidFunctionCallException("Failed to parse ABI: " + e.getMessage(), e);
         }
     }
 
-    private String callAddressGetter(String contractAddress, String getterName) throws Exception {
-        Function function = new Function(
-                getterName,
-                Collections.emptyList(),
-                Collections.singletonList(new TypeReference<Address>() {})
-        );
-        String encoded = FunctionEncoder.encode(function);
-        EthCall response = web3j.ethCall(
-                Transaction.createEthCallTransaction(null, contractAddress, encoded),
-                DefaultBlockParameterName.LATEST
-        ).send();
+    /**
+     * Estimates gas limit for a transaction.
+     *
+     * @param from          the sender address
+     * @param nonce         transaction nonce
+     * @param to            contract address or null for deployment
+     * @param valueWei      amount of wei to send
+     * @param data          encoded function or contract deployment data
+     * @return estimated gas limit with safety margin
+     */
+    private List<BigInteger> estimateGas(
+            String from,
+            BigInteger nonce,
+            String to,
+            BigInteger valueWei,
+            String data) throws GasEstimationFailedException {
 
-        if (response.isReverted() || response.hasError()) return null;
+        try {
+            BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
+            Transaction tx;
+            if (to == null || to.isBlank()) {
+                // Deployment transaction
+                tx = Transaction.createContractTransaction(from, nonce, gasPrice, null, valueWei, data);
+            } else {
+                // Function call transaction
+                tx = Transaction.createFunctionCallTransaction(from, nonce, gasPrice, null, to, valueWei, data);
+            }
 
-        List<Type> decoded = FunctionReturnDecoder.decode(response.getValue(), function.getOutputParameters());
-        if (decoded.isEmpty()) return null;
+            var response = web3j.ethEstimateGas(tx).send();
 
-        return ((Address) decoded.get(0)).getValue();
+            if (response.hasError()) {
+                throw new GasEstimationFailedException("Gas estimation error: " + response.getError().getMessage(), null);
+            }
+
+            BigInteger gasUsed = response.getAmountUsed();
+
+            if (gasUsed == null || gasUsed.equals(BigInteger.ZERO)) {
+                throw new GasEstimationFailedException("Gas estimation returned zero gas", null);
+            }
+
+            // Multiply gas by 2 as a safety margin
+            return List.of(
+                    gasUsed.multiply(BigInteger.valueOf(2)), // Gas limit with safety margin
+                    gasPrice // Current gas price
+            );
+        } catch (IOException e) {
+            throw new GasEstimationFailedException("IOException during gas estimation: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new GasEstimationFailedException("Gas estimation failed: " + e.getMessage(), e);
+        }
     }
-
-
 }

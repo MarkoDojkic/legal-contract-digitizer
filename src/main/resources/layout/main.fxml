@@ -13,6 +13,7 @@
 
     <HBox spacing="40" alignment="CENTER">
         <Button text="Upload new contract" fx:id="uploadBtn"/>
+        <Button text="Manage Ethereum wallets" fx:id="walletsManagerBtn"/>
         <Button text="Refresh List" fx:id="refreshBtn"/>
         <Button text="Logout" fx:id="logoutBtn"/>
     </HBox>

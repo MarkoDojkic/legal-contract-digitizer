@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.markodojkic.legalcontractdigitizer.exception.InvalidFunctionCallException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Type;
 import org.web3j.abi.datatypes.Utf8String;
@@ -18,7 +19,8 @@ import java.util.List;
 @Slf4j
 public class Web3jUtil {
 
-	private static final ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+	@Autowired
+	private static ObjectMapper objectMapper;
 
 	private Web3jUtil() {
 		throw new UnsupportedOperationException("Utility class should not be instantiated");
@@ -54,7 +56,7 @@ public class Web3jUtil {
 	 */
 	public static List<AbiDefinition> parseAbi(String abiJson) {
 		try {
-			return mapper.readValue(abiJson, new TypeReference<>() {});
+			return objectMapper.readValue(abiJson, new TypeReference<>() {});
 		} catch (Exception e) {
 			throw new InvalidFunctionCallException("Failed to parse ABI: " + e.getMessage(), e);
 		}

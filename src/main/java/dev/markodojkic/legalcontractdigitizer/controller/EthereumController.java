@@ -2,7 +2,9 @@ package dev.markodojkic.legalcontractdigitizer.controller;
 
 import dev.markodojkic.legalcontractdigitizer.dto.*;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
-import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
+import dev.markodojkic.legalcontractdigitizer.service.IContractService;
+import dev.markodojkic.legalcontractdigitizer.service.IEthereumService;
+import dev.markodojkic.legalcontractdigitizer.service.IEthereumWalletService;
 import dev.markodojkic.legalcontractdigitizer.service.impl.ContractServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,7 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.web3j.crypto.Credentials;
+import org.web3j.utils.Convert;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -26,8 +31,19 @@ import java.util.List;
 @Slf4j
 public class EthereumController {
 
-	private final EthereumService ethereumService;
-	private final ContractServiceImpl contractService;
+	private final IEthereumService ethereumService;
+	private final IContractService contractService;
+	private final IEthereumWalletService walletService;
+
+    @PostMapping("/register")
+    @Operation(summary = "Register a new Ethereum wallet")
+    public ResponseEntity<WalletInfo> registerWallet(@RequestParam String label) {
+		try {
+			return ResponseEntity.ok(walletService.createWallet(label));
+		} catch (WalletCreationException e){
+			return ResponseEntity.internalServerError().body(null);
+		}
+    }
 
 	@Operation(summary = "Deploy contract to Ethereum testnet",
 			description = "Deploys a compiled contract with given constructor parameters.")
@@ -52,7 +68,8 @@ public class EthereumController {
 			log.info("Deploying contract with id: {}", request.getContractId());
 			String contractAddress = contractService.deployContractWithParams(
 					request.getContractId(),
-					request.getConstructorParams()
+					request.getConstructorParams(),
+					walletService.loadCredentials(request.getDeployerWalletAddress())
 			);
 			return ResponseEntity.ok("Contract deployed at address: " + contractAddress);
 		} catch (ContractNotFoundException | UnauthorizedAccessException e) {
@@ -89,9 +106,10 @@ public class EthereumController {
 		}
 		try {
 			log.info("Estimating gas for contract id: {}", request.getContractId());
-			BigInteger gas = contractService.estimateGasForDeployment(
+			BigDecimal gas = contractService.estimateGasForDeployment(
 					request.getContractId(),
-					request.getConstructorParams()
+					request.getConstructorParams(),
+					request.getDeployerWalletAddress()
 			);
 			return ResponseEntity.ok(new GasEstimateResponseDTO("OK", gas));
 		} catch (ContractNotFoundException | UnauthorizedAccessException e) {
@@ -107,6 +125,20 @@ public class EthereumController {
 			return ResponseEntity.internalServerError()
 					.body(new GasEstimateResponseDTO("Error estimating gas: " + e.getMessage(), null));
 		}
+	}
+
+	@Operation(summary = "List all registered wallets")
+	@ApiResponses(@ApiResponse(responseCode = "200", description = "List of all registered wallets received"))
+	@GetMapping("/getAvailableWallets")
+	public ResponseEntity<List<WalletInfo>> listWallets() {
+		return ResponseEntity.ok(walletService.listWallets().stream().peek(walletInfo -> {
+			try {
+				walletInfo.setBalance(ethereumService.getBalance(walletInfo.getAddress()));
+			} catch (EthereumConnectionException e) {
+				log.error(e.getMessage());
+				walletInfo.setBalance(BigDecimal.valueOf(-1));
+			}
+		}).toList());
 	}
 
 	@Operation(summary = "Check if contract is confirmed (code exists at address)",
@@ -168,7 +200,7 @@ public class EthereumController {
 		}
 	}
 
-	@Operation(summary = "Get balance of smart contract (in Wei)",
+	@Operation(summary = "Get balance of smart contract (in Eth)",
 			responses = {
 					@ApiResponse(responseCode = "200", description = "Balance returned successfully"),
 					@ApiResponse(responseCode = "400", description = "Invalid Ethereum address", content = @Content),
@@ -177,8 +209,7 @@ public class EthereumController {
 	@GetMapping("/{address}/balance")
 	public ResponseEntity<String> getContractBalance(@PathVariable String address) {
 		try {
-			BigInteger balance = ethereumService.getBalance(address);
-			return ResponseEntity.ok(balance.toString());
+			return ResponseEntity.ok(ethereumService.getBalance(address).toString());
 		} catch (InvalidEthereumAddressException e) {
 			return ResponseEntity.badRequest().body("Invalid address: " + e.getMessage());
 		} catch (EthereumConnectionException e) {
@@ -201,7 +232,8 @@ public class EthereumController {
 					request.getAbi(),
 					request.getFunctionName(),
 					request.getParams(),
-					request.getValueWei()
+					request.getValueWei(),
+					walletService.loadCredentials(request.getRequestedByWalletAddress())
 			);
 			return ResponseEntity.ok(txHash);
 		} catch (InvalidEthereumAddressException e) {

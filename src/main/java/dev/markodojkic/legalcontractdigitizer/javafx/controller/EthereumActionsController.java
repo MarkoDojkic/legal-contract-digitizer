@@ -1,6 +1,8 @@
 package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
+import com.google.gson.reflect.TypeToken;
 import dev.markodojkic.legalcontractdigitizer.dto.GasEstimateResponseDTO;
+import dev.markodojkic.legalcontractdigitizer.dto.WalletInfo;
 import dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
@@ -34,7 +36,6 @@ import java.util.Objects;
 @Slf4j
 @Component
 public class EthereumActionsController implements WindowAwareController {
-	@Getter
 	@Setter
 	private JavaFXWindowController windowController;
 
@@ -49,16 +50,18 @@ public class EthereumActionsController implements WindowAwareController {
 
 	private final WindowLauncher windowLauncher;
 	private final ApplicationContext applicationContext;
-
+	private final HttpClientUtil httpClientUtil;
 	private final String baseUrl;
 	private final String etherscanUrl;
 
+	@Autowired
 	public EthereumActionsController(@Value("${server.port}") Integer serverPort,
-	                                 @Value("${ethereum.etherscan.url}") String etherscanUrl,
-	                                 @Autowired WindowLauncher windowLauncher,
-	                                 @Autowired ApplicationContext applicationContext){
+									 @Value("${ethereum.etherscan.url}") String etherscanUrl,
+	                                 WindowLauncher windowLauncher, HttpClientUtil httpClientUtil,
+	                                 ApplicationContext applicationContext){
 		this.baseUrl = String.format("http://localhost:%s/api/v1/ethereum", serverPort);
 		this.etherscanUrl = etherscanUrl;
+		this.httpClientUtil = httpClientUtil;
 		this.windowLauncher = windowLauncher;
 		this.applicationContext = applicationContext;
 	}
@@ -75,7 +78,7 @@ public class EthereumActionsController implements WindowAwareController {
 		estimateGasBtn.setOnAction(e -> estimateGas());
 		deployContractBtn.setOnAction(e -> deployContract());
 		checkConfirmedBtn.setOnAction(e -> checkConfirmation());
-		viewOnBlockchainBtn.setOnAction(e -> openEtherscan());
+		viewOnBlockchainBtn.setOnAction(e -> viewContractOnBlockchain());
 		getReceiptBtn.setOnAction(e -> getTransactionReceipt());
 		transactionHashField.textProperty().addListener((_, _, newValue) -> getReceiptBtn.setDisable(newValue.isEmpty()));
 		payBtn.setOnAction(e -> {
@@ -105,13 +108,16 @@ public class EthereumActionsController implements WindowAwareController {
 			case SOLIDITY_GENERATED -> deployContractBtn.setDisable(false);
 			case DEPLOYED -> checkConfirmedBtn.setDisable(false);
 			case CONFIRMED -> {
-				viewOnBlockchainBtn.setDisable(false);
 				estimateGasBtn.setDisable(true);
+				viewOnBlockchainBtn.setDisable(false);
+				viewPartiesBtn.setDisable(false);
 
+
+				//TODO: Below are example buttons, should make them dynamic based on solidity source for every function in smart contract
+				//Additionally we want to tie all functions to correct wallet to be invoked
 				payBtn.setDisable(false);
 				completeBtn.setDisable(false);
 				terminateBtn.setDisable(false);
-				viewPartiesBtn.setDisable(false);
 
 			}
 			default -> reset();
@@ -127,8 +133,8 @@ public class EthereumActionsController implements WindowAwareController {
 		getReceiptBtn.setDisable(true);
 
 		payBtn.setDisable(true);
-		completeBtn.setDisable(false); //TODO: Checks pending
-		terminateBtn.setDisable(false); //TODO: Checks pending
+		completeBtn.setDisable(true);
+		terminateBtn.setDisable(true);
 		viewPartiesBtn.setDisable(true);
 
 		balanceLabel.setText("Balance: —");
@@ -138,12 +144,15 @@ public class EthereumActionsController implements WindowAwareController {
 		try {
 			String url = baseUrl + "/estimate-gas";
 
+			var constructorParams = promptForConstructorParams();
+
 			Map<String, Object> bodyMap = Map.of(
 					"contractId", contract.id(),
-					"constructorParams", promptForConstructorParams()
+					"deployerWalletAddress", constructorParams.removeFirst().toString(),
+					"constructorParams", constructorParams
 			);
 
-			ResponseEntity<GasEstimateResponseDTO> response = HttpClientUtil.post(
+			ResponseEntity<GasEstimateResponseDTO> response = httpClientUtil.post(
 					url,
 					null,
 					bodyMap,
@@ -169,12 +178,15 @@ public class EthereumActionsController implements WindowAwareController {
 		try {
 			String url = baseUrl + "/deploy-contract";
 
+			var constructorParams = promptForConstructorParams();
+
 			Map<String, Object> bodyMap = Map.of(
 					"contractId", contract.id(),
-					"constructorParams", promptForConstructorParams()
+					"deployerWalletAddress", constructorParams.removeFirst().toString(),
+					"constructorParams", constructorParams
 			);
 
-			ResponseEntity<Void> response = HttpClientUtil.post(
+			ResponseEntity<Void> response = httpClientUtil.post(
 					url,
 					null,
 					bodyMap,
@@ -206,7 +218,7 @@ public class EthereumActionsController implements WindowAwareController {
 		try {
 			String url = baseUrl + "/" + contract.deployedAddress() + "/confirmed";
 
-			ResponseEntity<Boolean> response = HttpClientUtil.get(
+			ResponseEntity<Boolean> response = httpClientUtil.get(
 					url,
 					null,
 					Boolean.class
@@ -232,8 +244,7 @@ public class EthereumActionsController implements WindowAwareController {
 		}
 	}
 
-
-	private void openEtherscan() {
+	private void viewContractOnBlockchain() {
 		String address = contract.deployedAddress();
 		if (address != null && !address.isBlank()) {
 			windowLauncher.launchWebViewWindow(
@@ -250,7 +261,7 @@ public class EthereumActionsController implements WindowAwareController {
 		try {
 			String url = baseUrl + "/transaction/" + transactionHashField.getText() +"/receipt";
 
-			ResponseEntity<String> response = HttpClientUtil.get(
+			ResponseEntity<String> response = httpClientUtil.get(
 					url,
 					null,
 					String.class
@@ -269,36 +280,55 @@ public class EthereumActionsController implements WindowAwareController {
 	}
 
 	private List<Object> promptForConstructorParams() {
-		String abi = contract.abi();
-		Stage constructorStage = new Stage();
+		try {
+			String abi = contract.abi();
+			Stage constructorStage = new Stage();
 
-		ConstructorInputController controller = applicationContext.getBean(ConstructorInputController.class);
-		ConstructorInputController inputController = windowLauncher.launchWindow(
-				constructorStage,
-				"Constructor Parameters",
-				500,
-				500,
-				"/layout/constructor_input.fxml",
-				Objects.requireNonNull(getClass().getResource("/static/style/constructor_input.css")).toExternalForm(),
-				controller
-		);
+			ConstructorInputController controller = applicationContext.getBean(ConstructorInputController.class);
 
-		inputController.loadConstructorInputs(abi);
-		constructorStage.showAndWait(); // blocks until user closes window
+			String url = baseUrl + "/getAvailableWallets";
 
-		List<Object> constructorParams = inputController.getConstructorParams();
+			ResponseEntity<List<WalletInfo>> response = httpClientUtil.get(
+					url,
+					null,
+					new TypeToken<List<WalletInfo>>() {}.getType()
+			);
 
-		if (constructorParams == null) {
-			throw new IllegalStateException("Constructor parameters were not provided or invalid.");
+			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) controller.setWalletInfos(response.getBody());
+			else throw new IllegalStateException("No ethereum wallets found.");
+
+			controller.setWalletInfos(response.getBody());
+
+			ConstructorInputController inputController = windowLauncher.launchWindow(
+					constructorStage,
+					"Constructor Parameters",
+					500,
+					500,
+					"/layout/constructor_input.fxml",
+					Objects.requireNonNull(getClass().getResource("/static/style/constructor_input.css")).toExternalForm(),
+					controller
+			);
+
+			inputController.loadConstructorInputs(abi);
+			constructorStage.showAndWait(); // blocks until user closes window
+
+			List<Object> constructorParams = inputController.getConstructorParams();
+
+			if (constructorParams == null) {
+				throw new IllegalStateException("Constructor parameters were not provided or invalid.");
+			}
+
+			return constructorParams;
+		} catch (Exception e) {
+			log.error("Error occurred while creating constructor params", e);
+			throw new IllegalStateException(e.getMessage());
 		}
-
-		return constructorParams;
 	}
 
 	private void refreshBalance() {
 		try {
 			String url = baseUrl + "/" + contract.deployedAddress() + "/balance";
-			ResponseEntity<String> response = HttpClientUtil.get(url, null, String.class);
+			ResponseEntity<String> response = httpClientUtil.get(url, null, String.class);
 
 			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
 				String balance = response.getBody();
@@ -322,7 +352,7 @@ public class EthereumActionsController implements WindowAwareController {
 					"valueWei", valueWei
 			);
 
-			ResponseEntity<String> response = HttpClientUtil.post(url, null, body, String.class);
+			ResponseEntity<String> response = httpClientUtil.post(url, null, body, String.class);
 
 			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
 				String txHash = response.getBody();

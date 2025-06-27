@@ -1,14 +1,14 @@
 package dev.markodojkic.legalcontractdigitizer.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import dev.markodojkic.legalcontractdigitizer.dto.ContractPartiesBalanceRequest;
 import dev.markodojkic.legalcontractdigitizer.dto.PartyBalanceDto;
 import dev.markodojkic.legalcontractdigitizer.enums_records.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
-import dev.markodojkic.legalcontractdigitizer.service.EthereumService;
+import dev.markodojkic.legalcontractdigitizer.service.IEthereumService;
 import dev.markodojkic.legalcontractdigitizer.util.Web3jUtil;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +28,6 @@ import org.web3j.protocol.core.methods.response.EthCall;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.RawTransactionManager;
-import org.web3j.tx.TransactionManager;
 import org.web3j.utils.Convert;
 
 import java.io.IOException;
@@ -42,19 +41,16 @@ import java.util.regex.Pattern;
 
 @Service
 @Slf4j
-public class EthereumServiceImpl implements EthereumService {
+@RequiredArgsConstructor
+public class EthereumServiceImpl implements IEthereumService {
 
     private static final Pattern HEX_ADDRESS_PATTERN = Pattern.compile("^0x[0-9a-fA-F]{40}$");
 
+    private ObjectMapper objectMapper;
     private Web3j web3j;
-    private TransactionManager transactionManager;
-    private Credentials credentials;
 
     @Value("${ethereum.rpc.url}")
     private String ethereumRpcUrl;
-
-    @Value("${ethereum.private.key}")
-    private String privateKey;
 
     @Value("${ethereum.chain.id:1337}")
     private long chainId;
@@ -67,8 +63,6 @@ public class EthereumServiceImpl implements EthereumService {
                     .readTimeout(60, TimeUnit.SECONDS)
                     .writeTimeout(60, TimeUnit.SECONDS)
                     .build(), false));
-            credentials = Credentials.create(privateKey);
-            transactionManager = new RawTransactionManager(web3j, credentials, chainId);
 
             log.info("EthereumService initialized with RPC {}, chainId {}", ethereumRpcUrl, chainId);
         } catch (Exception e) {
@@ -93,7 +87,7 @@ public class EthereumServiceImpl implements EthereumService {
     }
 
     @Override
-    public String deployCompiledContract(String binary, String encodedConstructor) throws DeploymentFailedException {
+    public String deployCompiledContract(String binary, String encodedConstructor, Credentials credentials) throws DeploymentFailedException {
         if (binary == null || binary.isBlank()) {
             throw new DeploymentFailedException("Contract binary must not be null or empty", null);
         }
@@ -105,11 +99,11 @@ public class EthereumServiceImpl implements EthereumService {
             String data = "0x" + binary + encodedConstructor;
 
             BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
-            BigInteger gasLimit = estimateGasForDeployment(binary, encodedConstructor);
+            BigInteger gasLimit = estimateGasForDeployment(binary, encodedConstructor, credentials.getAddress());
 
             log.info("Deploying contract with gasPrice={} and gasLimit={}", gasPrice, gasLimit);
 
-            String txHash = (transactionManager).sendTransaction(
+            String txHash = new RawTransactionManager(web3j, credentials, chainId).sendTransaction(
                     gasPrice,
                     gasLimit,
                     null,
@@ -132,7 +126,7 @@ public class EthereumServiceImpl implements EthereumService {
     }
 
     @Override
-    public BigInteger estimateGasForDeployment(String binary, String encodedConstructor) throws GasEstimationFailedException {
+    public BigInteger estimateGasForDeployment(String binary, String encodedConstructor, String deployerWalletAddress) throws GasEstimationFailedException {
         if (binary == null || binary.isBlank()) {
             throw new GasEstimationFailedException("Contract binary must not be null or empty", null);
         }
@@ -142,14 +136,13 @@ public class EthereumServiceImpl implements EthereumService {
 
         try {
             String data = "0x" + binary + encodedConstructor;
-            String from = credentials.getAddress();
 
-            BigInteger nonce = web3j.ethGetTransactionCount(from, DefaultBlockParameterName.PENDING)
+            BigInteger nonce = web3j.ethGetTransactionCount(deployerWalletAddress, DefaultBlockParameterName.PENDING)
                     .send().getTransactionCount();
 
             BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice().multiply(BigInteger.valueOf(2)); // safety multiplier
 
-            Transaction tx = Transaction.createContractTransaction(from, nonce, gasPrice, null, BigInteger.ZERO, data);
+            Transaction tx = Transaction.createContractTransaction(deployerWalletAddress, nonce, gasPrice, null, BigInteger.ZERO, data);
 
             var response = web3j.ethEstimateGas(tx).send();
 
@@ -197,10 +190,8 @@ public class EthereumServiceImpl implements EthereumService {
             if (receiptOpt.isEmpty()) {
                 return null; // Receipt not yet available
             }
-            // Convert receipt to JSON string - you can use your favorite JSON lib, here example with Jackson
-            ObjectMapper mapper = new ObjectMapper();
-            mapper.enable(SerializationFeature.INDENT_OUTPUT);
-            return mapper.writeValueAsString(receiptOpt.get());
+
+            return objectMapper.writeValueAsString(receiptOpt.get());
         } catch (IOException e) {
             log.error("Failed to serialize transaction receipt", e);
             throw new EthereumConnectionException("Failed to process transaction receipt JSON", e);
@@ -236,15 +227,15 @@ public class EthereumServiceImpl implements EthereumService {
     }
 
     @Override
-    public BigInteger getBalance(String address) throws InvalidEthereumAddressException, EthereumConnectionException {
+    public BigDecimal getBalance(String address) throws InvalidEthereumAddressException, EthereumConnectionException {
         if (!isValidAddress(address)) {
             throw new InvalidEthereumAddressException("Invalid Ethereum address: " + address);
         }
 
         try {
-            return web3j.ethGetBalance(address, DefaultBlockParameterName.LATEST)
+            return Convert.fromWei(new BigDecimal(web3j.ethGetBalance(address, DefaultBlockParameterName.LATEST)
                     .send()
-                    .getBalance();
+                    .getBalance()), Convert.Unit.ETHER);
         } catch (Exception e) {
             log.error("Error retrieving balance for address {}", address, e);
             throw new EthereumConnectionException("Failed to retrieve balance", e);
@@ -257,8 +248,8 @@ public class EthereumServiceImpl implements EthereumService {
             String abiJson,
             String functionName,
             List<Object> params,
-            BigInteger valueWei
-    ) throws InvalidEthereumAddressException, InvalidFunctionCallException, EthereumConnectionException {
+            BigInteger valueWei,
+            Credentials credentials) throws InvalidEthereumAddressException, InvalidFunctionCallException, EthereumConnectionException {
         if (!isValidAddress(contractAddress)) {
             throw new InvalidEthereumAddressException("Invalid Ethereum address: " + contractAddress);
         }
@@ -291,7 +282,7 @@ public class EthereumServiceImpl implements EthereumService {
                     .getAmountUsed()
                     .multiply(BigInteger.valueOf(2));
 
-            return transactionManager.sendTransaction(
+            return new RawTransactionManager(web3j, credentials, chainId).sendTransaction(
                     gasPrice,
                     gasLimit,
                     contractAddress,
@@ -313,13 +304,10 @@ public class EthereumServiceImpl implements EthereumService {
             List<PartyBalanceDto> result = new ArrayList<>();
 
             // Add contract balance
-            BigInteger contractBalanceWei = web3j.ethGetBalance(request.getContractAddress(), DefaultBlockParameterName.LATEST)
-                    .send().getBalance();
-            BigDecimal contractBalanceEth = Convert.fromWei(new BigDecimal(contractBalanceWei), Convert.Unit.ETHER);
             result.add(PartyBalanceDto.builder()
                     .roleName("contract")
                     .address(request.getContractAddress())
-                    .balanceEth(contractBalanceEth)
+                    .balanceEth(getBalance(request.getContractAddress()))
                     .build());
 
             // Parse ABI and find all public address-type variables
@@ -333,12 +321,10 @@ public class EthereumServiceImpl implements EthereumService {
                     String roleName = def.getName();
                     String address = callAddressGetter(request.getContractAddress(), roleName);
                     if (address != null && !address.equalsIgnoreCase("0x0000000000000000000000000000000000000000")) {
-                        BigInteger balanceWei = web3j.ethGetBalance(address, DefaultBlockParameterName.LATEST).send().getBalance();
-                        BigDecimal balanceEth = Convert.fromWei(new BigDecimal(balanceWei), Convert.Unit.ETHER);
                         result.add(PartyBalanceDto.builder()
                                 .roleName(roleName)
                                 .address(address)
-                                .balanceEth(balanceEth)
+                                .balanceEth(getBalance(address))
                                 .build());
                     }
                 }

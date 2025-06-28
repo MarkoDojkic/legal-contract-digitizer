@@ -191,7 +191,11 @@ public class MainController implements WindowAwareController {
                         nextStepBtn.setText("Extract Clauses");
                         container.getChildren().add(nextStepBtn);
                     }
-                    case CLAUSES_EXTRACTED, SOLIDITY_PREPARED -> {
+                    case CLAUSES_EXTRACTED -> {
+                        nextStepBtn.setText("Prepare Solidity");
+                        container.getChildren().add(nextStepBtn);
+                    }
+                    case SOLIDITY_PREPARED -> {
                         nextStepBtn.setText("Generate Solidity");
                         container.getChildren().add(nextStepBtn);
                     }

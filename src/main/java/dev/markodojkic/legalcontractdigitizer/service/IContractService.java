@@ -19,5 +19,5 @@ public interface IContractService {
 			IllegalStateException, InvalidContractBinaryException, GasEstimationFailedException;
 	List<DigitalizedContract> listContractsForUser(String userId);
 	void updateContractStatus(String deploymentAddress, ContractStatus newStatus) throws ContractNotFoundException, UnauthorizedAccessException, IllegalStateException;
-	void deleteIfNotConfirmed(String contractId);
+	void deleteIfNotDeployed(String contractId);
 }

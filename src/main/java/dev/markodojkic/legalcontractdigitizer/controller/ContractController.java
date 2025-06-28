@@ -9,7 +9,6 @@ import dev.markodojkic.legalcontractdigitizer.exception.ContractNotFoundExceptio
 import dev.markodojkic.legalcontractdigitizer.exception.SolidityGenerationException;
 import dev.markodojkic.legalcontractdigitizer.service.FileTextExtractorService;
 import dev.markodojkic.legalcontractdigitizer.service.IContractService;
-import dev.markodojkic.legalcontractdigitizer.service.impl.ContractServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -107,7 +106,7 @@ public class ContractController {
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> deleteContract(@PathVariable("id") String contractId) {
 		try {
-			contractService.deleteIfNotConfirmed(contractId);
+			contractService.deleteIfNotDeployed(contractId);
 			return ResponseEntity.noContent().build();
 		} catch (IllegalStateException _) {
 			log.warn("Attempted to delete confirmed contract: {}", contractId);

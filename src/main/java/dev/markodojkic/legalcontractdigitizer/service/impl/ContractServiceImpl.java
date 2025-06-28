@@ -99,6 +99,12 @@ public class ContractServiceImpl implements IContractService {
 				String abi = doc.getString("abi");
 				String deployedAddress = doc.getString(DEPLOYED_ADDRESS);
 
+				if(status == ContractStatus.CONFIRMED){
+					status = ethereumService.doesSmartContractExist(deployedAddress) ?
+							ContractStatus.CONFIRMED : ContractStatus.TERMINATED;
+					updateContractStatus(deployedAddress, status);
+				}
+
 				contracts.add(new DigitalizedContract(
 						id,
 						contractUserId,
@@ -148,11 +154,11 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
-	public void deleteIfNotConfirmed(String contractId) {
+	public void deleteIfNotDeployed(String contractId) {
 		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
 
-		if (ContractStatus.valueOf(snapshot.getString(STATUS)).compareTo(ContractStatus.CONFIRMED) < 0) {
+		if (ContractStatus.valueOf(snapshot.getString(STATUS)).compareTo(ContractStatus.DEPLOYED) < 0) {
 			docRef.delete();
 			log.info("Deleted contract with ID {}", contractId);
 		} else {
@@ -235,7 +241,7 @@ public class ContractServiceImpl implements IContractService {
 		log.info("Generating Solidity contract for contract ID: {}", contractId);
 		String soliditySource;
 		try {
-			soliditySource = aiService.generateSolidityContract(clauses, true);
+			soliditySource = aiService.generateSolidityContract(clauses);
 		} catch (Exception e) {
 			log.error("Failed to generate Solidity contract for contract ID: {}", contractId, e);
 			throw new SolidityGenerationException(contractId, e);
@@ -263,7 +269,7 @@ public class ContractServiceImpl implements IContractService {
 		try {
 			log.info("Compiling Solidity contract for contract ID: {}", snapshot.getId());
 			result = compile(soliditySource);
-		} catch (IOException | InterruptedException e) {
+		} catch (IOException | InterruptedException | SolidityGenerationException e) {
 			Thread.currentThread().interrupt();
 			log.error("Solidity compilation failed for contract ID: {}", snapshot.getId(), e);
 			throw new CompilationException(snapshot.getId(), e);
@@ -385,7 +391,7 @@ public class ContractServiceImpl implements IContractService {
 		return new ContractDeploymentContext(userId, ethContext, contractRef);
 	}
 
-	private CompilationResultDTO compile(String soliditySource) throws IOException, InterruptedException {
+	private CompilationResultDTO compile(String soliditySource) throws IOException, InterruptedException, SolidityGenerationException {
 		Path sourceFile = Files.createTempFile("contract", ".sol");
 		try {
 			Files.writeString(sourceFile, soliditySource);

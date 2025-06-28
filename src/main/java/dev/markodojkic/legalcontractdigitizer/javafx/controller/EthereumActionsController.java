@@ -102,7 +102,6 @@ public class EthereumActionsController implements WindowAwareController {
 			case SOLIDITY_GENERATED -> deployContractBtn.setDisable(false);
 			case DEPLOYED -> checkConfirmedBtn.setDisable(false);
 			case CONFIRMED, TERMINATED -> {
-				if(status == ContractStatus.CONFIRMED) checkTermination();
 				estimateGasBtn.setDisable(true);
                 viewOnBlockchainBtn.setDisable(false);
 				addConfirmedContractUI();
@@ -230,33 +229,6 @@ public class EthereumActionsController implements WindowAwareController {
 		}
 	}
 
-	private void checkTermination() {
-		try {
-			String url = baseUrl + "/" + contract.deployedAddress() + "/terminated";
-
-			ResponseEntity<Boolean> response = httpClientUtil.get(
-					url,
-					null,
-					Boolean.class
-			);
-
-			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-				boolean terminated = response.getBody();
-				Platform.runLater(() -> {
-					if (terminated) {
-						reset();
-						updateButtonsByStatus(ContractStatus.TERMINATED);
-					}
-				});
-			} else {
-				Platform.runLater(() -> confirmedResultLabel.setText("Failed to check termination"));
-			}
-		} catch (Exception e) {
-			log.error("Error checking termination", e);
-			Platform.runLater(() -> confirmedResultLabel.setText("Error checking termination"));
-		}
-	}
-
 	private void viewContractOnBlockchain() {
 		String address = contract.deployedAddress();
 		if (address != null && !address.isBlank()) {
@@ -364,7 +336,6 @@ public class EthereumActionsController implements WindowAwareController {
 					confirmedResultLabel.setText("Function executed successfully!");
 					transactionHashField.setText(txHash);
 					refreshBalance();
-					checkTermination();
 				});
 			} else {
 				Platform.runLater(() -> confirmedResultLabel.setText("Transaction failed"));
@@ -380,9 +351,7 @@ public class EthereumActionsController implements WindowAwareController {
 		}
 
 		autoRefreshTimeline = new Timeline(
-				new KeyFrame(Duration.seconds(30), event -> {
-					refreshBalance();
-				})
+				new KeyFrame(Duration.seconds(30), _ -> refreshBalance())
 		);
 		autoRefreshTimeline.setCycleCount(Timeline.INDEFINITE);
 		autoRefreshTimeline.play();

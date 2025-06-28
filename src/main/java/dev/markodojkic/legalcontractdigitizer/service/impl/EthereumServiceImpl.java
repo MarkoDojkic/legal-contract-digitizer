@@ -173,19 +173,34 @@ public class EthereumServiceImpl implements IEthereumService {
         }
 
         try {
+            // Step 1: Check code existence
             String code = web3j.ethGetCode(contractAddress, DefaultBlockParameterName.LATEST)
                     .send()
                     .getCode();
 
-            log.info("Contract code for {}: {}", contractAddress, code);
+            if (code == null || code.equals("0x") || code.equals("0x0")) return false; // No code deployed at address
 
-            // If contract is self-destructed, code should be "0x" or "0x0"
-            return code != null && !code.equals("0x") && !code.equals("0x0"); //TODO: check since it doesn't work for checking termination (delay or should use another way)
+            // Step 2: Check `destroyed` flag via eth_call
+
+            // Prepare function call data for `destroyed() public view returns (bool)`
+            String methodId = "0x359cbbc9";
+
+            Transaction callTransaction = Transaction.createEthCallTransaction(
+                    null, // from address can be null for eth_call
+                    contractAddress,
+                    methodId
+            );
+
+            EthCall response = web3j.ethCall(callTransaction, DefaultBlockParameterName.LATEST).send();
+
+            return response.isReverted();
+
         } catch (Exception e) {
-            log.error("Failed to get contract code", e);
-            throw new EthereumConnectionException("Failed to check contract confirmation: " + e.getMessage(), e);
+            log.error("Failed to get contract code or destroyed flag", e);
+            throw new EthereumConnectionException("Failed to check contract existence: " + e.getMessage(), e);
         }
     }
+
 
     @Override
     public String getTransactionReceipt(String txHash) throws IllegalArgumentException, EthereumConnectionException {

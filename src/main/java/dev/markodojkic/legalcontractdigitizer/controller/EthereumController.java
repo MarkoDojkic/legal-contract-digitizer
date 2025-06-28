@@ -168,34 +168,6 @@ public class EthereumController {
 		}
 	}
 
-	@Operation(summary = "Check if contract is terminated (self-destructed)",
-			description = "Returns true if the Ethereum contract is terminated at the address.")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Termination status returned"),
-			@ApiResponse(responseCode = "400", description = "Invalid Ethereum address"),
-			@ApiResponse(responseCode = "500", description = "Failed to check termination status")
-	})
-	@GetMapping("/{address}/terminated")
-	public ResponseEntity<Boolean> isContractTerminated(
-			@Parameter(description = "Ethereum contract address to check", required = true)
-			@PathVariable String address) {
-		if (address == null || address.isBlank()) {
-			log.warn("Check contract terminated called with empty address");
-			return ResponseEntity.badRequest().build();
-		}
-		try {
-			boolean terminated = !ethereumService.doesSmartContractExist(address);
-			if(terminated) contractService.updateContractStatus(address, TERMINATED);
-			return ResponseEntity.ok(terminated);
-		} catch (InvalidEthereumAddressException e) {
-			log.warn("Invalid contract address: {}", e.getMessage());
-			return ResponseEntity.badRequest().build();
-		} catch (EthereumConnectionException e) {
-			log.error("Failed to check contract confirmation for address {}", address, e);
-			return ResponseEntity.internalServerError().build();
-		}
-	}
-
 	@Operation(summary = "Get transaction receipt by transaction hash",
 			description = "Returns the JSON representation of the transaction receipt, if available.")
 	@ApiResponses(value = {

@@ -7,10 +7,9 @@
       xmlns:fx="http://javafx.com/fxml"
       spacing="10"
       alignment="CENTER"
-      styleClass="main-window content-area"
       prefWidth="600" prefHeight="400">
 
-    <Label text="Ethereum Wallet Manager" styleClass="title-label"/>
+    <Label text="Ethereum Wallet Manager" />
 
     <HBox spacing="10">
         <TextField fx:id="walletLabelField" promptText="Enter wallet label" prefWidth="300"/>

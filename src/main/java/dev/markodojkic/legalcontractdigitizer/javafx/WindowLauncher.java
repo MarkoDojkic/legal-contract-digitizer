@@ -7,18 +7,15 @@ import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.VBox;
-import javafx.scene.web.WebEngine;
+import javafx.scene.layout.*;
 import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
-import javafx.stage.Stage;
-import javafx.stage.StageStyle;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
@@ -28,119 +25,185 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 @Component
-@RequiredArgsConstructor
 public class WindowLauncher {
 
-    private ApplicationContext applicationContext;
+    @Setter
+    @Getter
+    private Pane rootPane; // main container for all window panes
 
-    private record StageWithController(Stage stage, JavaFXWindowController controller, Scene scene) {}
+    private final ApplicationContext applicationContext;
 
-    private StageWithController setupStageWithWindow(Stage stage, String title, double width, double height) {
-        try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/window.fxml"));
-            Parent root = loader.load();
-            JavaFXWindowController controller = loader.getController();
-            controller.setTitle(title);
-
-            Scene scene = new Scene(root, width, height);
-            scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/static/style/window.css")).toExternalForm());
-
-            stage.setScene(scene);
-            stage.setTitle(title);
-            stage.setResizable(false);
-            stage.initStyle(StageStyle.UNDECORATED);
-            stage.setWidth(width);
-            stage.setHeight(height);
-
-            Platform.runLater(() -> WindowAnimator.openWindow(
-                    stage,
-                    controller.getTitleBar(),
-                    controller.getStatusBar(),
-                    controller.getContentArea()
-            ));
-
-            return new StageWithController(stage, controller, scene);
-
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to setup window frame for: " + title, e);
-        }
+    public WindowLauncher(ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
     }
 
-    public <T extends WindowAwareController> T launchWindow(Stage stage, String windowTitle, double width, double height,
-                                                            String contentFxml, String contentCSS, Object... controller) {
-        StageWithController swc = setupStageWithWindow(stage, windowTitle, width, height);
+    /**
+     * Launch window with given title, size, content FXML and CSS, and controller instance.
+     */
+    public <T extends WindowAwareController> T launchWindow(
+            String windowTitle,
+            double width,
+            double height,
+            String contentFxml,
+            String contentCSS,
+            T controllerInstance) {
 
         try {
+            FXMLLoader windowLoader = new FXMLLoader(getClass().getResource("/layout/window.fxml"));
+            Pane windowRoot = windowLoader.load();
+            JavaFXWindowController windowController = windowLoader.getController();
+
+            windowController.setTitle(windowTitle);
+            windowController.setWindowRoot(windowRoot);
+            windowController.setWindowLauncher(this);
+            windowRoot.setPrefWidth(width);
+            windowRoot.setPrefHeight(height);
+
             FXMLLoader contentLoader = new FXMLLoader(getClass().getResource(contentFxml));
-            if (controller != null && controller.length > 0) {
-                WindowAwareController contentController = (WindowAwareController) controller[0];
-                contentController.setWindowController(swc.controller);
-                contentLoader.setController(contentController);
-            }
+            contentLoader.setController(controllerInstance);
             Parent contentRoot = contentLoader.load();
 
-            swc.controller.getContentArea().getChildren().setAll(contentRoot);
-            if(contentCSS != null) swc.scene.getStylesheets().add(contentCSS);
+            // Setup window controller relationship
+            controllerInstance.setWindowController(windowController);
 
-            return contentLoader.getController();
+            windowController.getContentArea().getChildren().setAll(contentRoot);
+
+            windowRoot.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/static/style/window.css")).toExternalForm());
+            if (contentCSS != null) {
+                windowRoot.getStylesheets().add(contentCSS);
+            }
+
+            rootPane.getChildren().add(windowRoot);
+
+            centerWindow(windowRoot, width, height);
+
+            makeDraggable(windowRoot, windowController.getTitleBar());
+
+            WindowAnimator.openWindow(rootPane, windowController.getTitleBar(), windowController.getStatusBar(), windowController.getContentArea());
+
+            return controllerInstance;
+
         } catch (IOException e) {
             throw new IllegalStateException("Failed to launch window content: " + contentFxml, e);
         }
     }
 
-    public WebViewWindow launchWebViewWindow(Stage stage, String title, double width, double height, String url) {
-        StageWithController swc = setupStageWithWindow(stage, title, width, height);
+    public WebViewWindow launchWebViewWindow(String title, double width, double height, String url) {
+        JavaFXWindowController controller = loadWindowFrame(title, width, height);
 
         WebView webView = new WebView();
-        WebEngine engine = webView.getEngine();
-        engine.load(url);
+        webView.getEngine().load(url);
+        controller.getContentArea().getChildren().setAll(webView);
 
-        swc.controller.getContentArea().getChildren().setAll(webView);
-
-        return new WebViewWindow(swc.stage, swc.controller, engine);
+        return new WebViewWindow(rootPane, controller, webView.getEngine());
     }
 
-    public void launchFilePickerWindow(Stage stage, String title, double width, double height, Consumer<File> onFilePicked) {
-        StageWithController swc = setupStageWithWindow(stage, title, width, height);
+    public void launchFilePickerWindow(String title, double width, double height, Consumer<File> onFilePicked) {
+        JavaFXWindowController controller = loadWindowFrame(title, width, height);
 
-        Button pickFileBtn = new Button("Select Contract File");
-        Label fileNameLabel = new Label("No file selected");
-        VBox filePickerBox = new VBox(15, pickFileBtn, fileNameLabel);
-        filePickerBox.setAlignment(Pos.CENTER);
+        Label fileLabel = new Label("No file selected");
+        Button selectButton = new Button("Choose File");
+        VBox box = new VBox(10, selectButton, fileLabel);
+        box.setAlignment(Pos.CENTER);
 
-        pickFileBtn.setOnAction(e -> {
+        selectButton.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Choose Contract File");
-            File selectedFile = fileChooser.showOpenDialog(stage);
-            if (selectedFile != null) {
-                fileNameLabel.setText(selectedFile.getName());
-                onFilePicked.accept(selectedFile);
+            fileChooser.setTitle("Select a file");
+            File file = fileChooser.showOpenDialog(null); // still uses system dialog
+            if (file != null) {
+                fileLabel.setText(file.getName());
+                onFilePicked.accept(file);
             }
         });
 
-        swc.controller.getContentArea().getChildren().setAll(filePickerBox);
+        controller.getContentArea().getChildren().setAll(box);
     }
 
-    public JavaFXWindowController launchSuccessAnimationWindow(Stage stage) {
-        return launchAnimationWindow(stage, "Success", 250, 250, "/static/animations/green_check.gif");
+    public void launchSuccessAnimationWindow() {
+        launchAnimationWindow("Success", 250, 250, "/static/animations/green_check.gif");
     }
 
-    public JavaFXWindowController launchErrorAnimationWindow(Stage stage) {
-        return launchAnimationWindow(stage, "Error", 250, 250, "/static/animations/red_exclamation.gif");
+    public void launchErrorAnimationWindow() {
+        launchAnimationWindow("Error", 250, 250, "/static/animations/red_exclamation.gif");
     }
 
-    private JavaFXWindowController launchAnimationWindow(Stage stage, String title, double width, double height, String gifResourcePath) {
-        StageWithController swc = setupStageWithWindow(stage, title, width, height);
+    private void launchAnimationWindow(String title, double width, double height, String gifPath) {
+        JavaFXWindowController controller = loadWindowFrame(title, width, height);
 
-        ImageView imageView = new ImageView(new Image(getClass().getResourceAsStream(gifResourcePath)));
-        imageView.setFitWidth(width * 0.8);
-        imageView.setPreserveRatio(true);
+        ImageView image = new ImageView(new Image(Objects.requireNonNull(getClass().getResourceAsStream(gifPath))));
+        image.setFitWidth(width * 0.8);
+        image.setPreserveRatio(true);
 
-        VBox container = new VBox(imageView);
-        container.setAlignment(Pos.CENTER);
+        VBox box = new VBox(image);
+        box.setAlignment(Pos.CENTER);
 
-        swc.controller.getContentArea().getChildren().setAll(container);
-
-        return swc.controller;
+        controller.getContentArea().getChildren().setAll(box);
     }
+
+    private JavaFXWindowController loadWindowFrame(String title, double width, double height) {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/window.fxml"));
+            Pane windowRoot = loader.load();
+            JavaFXWindowController controller = loader.getController();
+
+            controller.setTitle(title);
+            controller.setWindowRoot(windowRoot);     // so it can remove itself
+            controller.setWindowLauncher(this);     // so it knows where to remove from
+            windowRoot.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/static/style/window.css")).toExternalForm());
+
+            windowRoot.setPrefSize(width, height);
+            windowRoot.getStyleClass().add("window-wrapper");
+            makeDraggable(windowRoot, controller.getTitleBar());
+
+            Platform.runLater(() -> WindowAnimator.openWindow(rootPane, controller.getTitleBar(), controller.getStatusBar(), controller.getContentArea()));
+
+            rootPane.getChildren().add(windowRoot); // this is your fullscreen root Pane
+
+            return controller;
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load window.fxml", e);
+        }
+    }
+
+    /**
+     * Make a window pane draggable by dragging on title bar.
+     */
+    private void makeDraggable(Parent window, Pane dragHandle) {
+        final Delta dragDelta = new Delta();
+
+        dragHandle.setOnMousePressed(mouseEvent -> {
+            dragDelta.x = window.getLayoutX() - mouseEvent.getSceneX();
+            dragDelta.y = window.getLayoutY() - mouseEvent.getSceneY();
+        });
+
+        dragHandle.setOnMouseDragged(mouseEvent -> {
+            double newX = mouseEvent.getSceneX() + dragDelta.x;
+            double newY = mouseEvent.getSceneY() + dragDelta.y;
+
+            // Optional: clamp positions within rootPane bounds
+            if (rootPane != null) {
+                newX = clamp(newX, 0, rootPane.getWidth() - window.prefWidth(-1));
+                newY = clamp(newY, 0, rootPane.getHeight() - window.prefHeight(-1));
+            }
+
+            window.setLayoutX(newX);
+            window.setLayoutY(newY);
+        });
+    }
+
+    private double clamp(double val, double min, double max) {
+        if (val < min) return min;
+        if (val > max) return max;
+        return val;
+    }
+
+    private void centerWindow(Parent windowRoot, double width, double height) {
+        if (rootPane != null) {
+            windowRoot.setLayoutX((rootPane.getWidth() - width) / 2);
+            windowRoot.setLayoutY((rootPane.getHeight() - height) / 2);
+        }
+    }
+
+    private static class Delta { double x, y; }
 }

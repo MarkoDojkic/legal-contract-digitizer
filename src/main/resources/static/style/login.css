@@ -1,9 +1,3 @@
-/* login-pane styles the whole StackPane */
-.login-pane {
-    -fx-background-color: linear-gradient(to bottom right, #1e2a38, #283f5a);
-    -fx-padding: 40;
-}
-
 /* VBox inside login-pane */
 .login-pane > .vbox {
     -fx-background-color: rgba(255, 255, 255, 0.1);
@@ -20,7 +14,6 @@
     -fx-text-fill: white;
     -fx-font-size: 28px;
     -fx-font-weight: bold;
-    -fx-font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
 /* Button inside VBox */
@@ -48,6 +41,5 @@
 .login-message {
     -fx-text-fill: white;
     -fx-font-size: 14px;
-    -fx-font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     -fx-padding: 10 0;
 }

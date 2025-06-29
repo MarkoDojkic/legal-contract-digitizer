@@ -10,7 +10,6 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.stage.Stage;
 import javafx.util.Callback;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,6 +25,7 @@ import java.util.List;
 @Slf4j
 @Component
 public class WalletManagerController implements WindowAwareController {
+	@Getter
 	@Setter
 	private JavaFXWindowController windowController;
 
@@ -137,7 +137,6 @@ public class WalletManagerController implements WindowAwareController {
 				viewBtn.setOnAction(e -> {
 					WalletInfo wallet = getTableView().getItems().get(getIndex());
 					windowLauncher.launchWebViewWindow(
-							new Stage(),
 							"View on Blockchain - " + wallet.getLabel(),
 							1024,
 							1024,

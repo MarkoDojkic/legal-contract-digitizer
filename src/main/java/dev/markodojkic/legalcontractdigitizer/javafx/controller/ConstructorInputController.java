@@ -141,7 +141,7 @@ public class ConstructorInputController implements WindowAwareController {
 
             collectedParams = result;
 
-            windowController.getCloseBtn().fire();
+            windowController.getCloseButton().fire();
 
         } catch (Exception e) {
             showError("Invalid input: " + e.getMessage());
@@ -151,7 +151,7 @@ public class ConstructorInputController implements WindowAwareController {
     @FXML
     private void onCancel() {
         collectedParams = null;
-        windowController.getCloseBtn().fire();
+        windowController.getCloseButton().fire();
     }
 
     public List<Object> getParams() {

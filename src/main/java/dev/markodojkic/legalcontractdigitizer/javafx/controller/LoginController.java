@@ -10,7 +10,6 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.stage.Stage;
 import lombok.Getter;
 import lombok.Setter;
 import okhttp3.*;
@@ -36,15 +35,14 @@ public class LoginController implements WindowAwareController {
     @Getter
     private JavaFXWindowController windowController;
 
-    private final Integer serverPort;
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
     private final WindowLauncher windowLauncher;
     private final ApplicationContext applicationContext;
 
-    @Getter
-    private String authUrl;
+    private final String backendUrl;
+    private final String authUrl;
 
     public LoginController(@Value("${server.port}") Integer serverPort,
                            @Value("${google.client.id}") String clientId,
@@ -52,12 +50,12 @@ public class LoginController implements WindowAwareController {
                            @Value("${google.redirect-uri}") String redirectUri,
                            @Autowired WindowLauncher windowLauncher,
                            @Autowired ApplicationContext applicationContext) {
-        this.serverPort = serverPort;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.redirectUri = redirectUri;
         this.authUrl = String.format("https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid%%20email%%20profile",
                 clientId, redirectUri);
+        this.backendUrl = String.format("http://localhost:%s/api/v1/auth/google", serverPort);
         this.windowLauncher = windowLauncher;
         this.applicationContext = applicationContext;
     }
@@ -153,7 +151,7 @@ public class LoginController implements WindowAwareController {
         );
 
         Request request = new Request.Builder()
-                .url(String.format("http://localhost:%s/api/v1/auth/google", serverPort))
+                .url(backendUrl)
                 .post(body)
                 .build();
 
@@ -204,8 +202,7 @@ public class LoginController implements WindowAwareController {
                         AuthSession.setIdToken(idToken);
 
                         windowLauncher.launchWindow(
-                                new Stage(),
-                                "Legal contract digitizer - Main window",
+                                "Main window",
                                 1280,
                                 1024,
                                 "/layout/main.fxml",
@@ -213,7 +210,7 @@ public class LoginController implements WindowAwareController {
                                 mainController
                         );
                         updateMessageLabel("Login successful");
-                        windowController.getCloseBtn().fire();
+                        windowController.getCloseButton().fire();
                     });
                 }
             }
@@ -222,7 +219,6 @@ public class LoginController implements WindowAwareController {
 
     private void launchGoogleSignInFlow() {
         WebViewWindow googleLoginWindow = windowLauncher.launchWebViewWindow(
-                new Stage(),
                 "Google Sign-In",
                 1024,
                 768,
@@ -236,13 +232,13 @@ public class LoginController implements WindowAwareController {
                 String code = extractQueryParam(newLoc, "code");
                 if (code != null) exchangeCodeForIdToken(code);
 
-                Platform.runLater(() -> googleLoginWindow.controller().getCloseBtn().fire());
+                Platform.runLater(() -> googleLoginWindow.controller().getCloseButton().fire());
             } else if (newLoc.contains("error=")) {
                 String error = extractQueryParam(newLoc, "error");
                 updateMessageLabel("Login error: " + (error != null ? error : "Unknown"));
 
                 if (googleLoginWindow.controller() != null) {
-                    Platform.runLater(() -> googleLoginWindow.controller().getCloseBtn().fire());
+                    Platform.runLater(() -> googleLoginWindow.controller().getCloseButton().fire());
                 }
             }
         });

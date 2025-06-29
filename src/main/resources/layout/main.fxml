@@ -18,11 +18,11 @@
         <Button text="Logout" fx:id="logoutBtn"/>
     </HBox>
 
-    <TableView fx:id="contractsTable" prefHeight="600" prefWidth="1100">
+    <TableView fx:id="contractsTable" prefHeight="600" prefWidth="1200">
         <columns>
-            <TableColumn fx:id="idCol" text="Contract ID" prefWidth="440" />
-            <TableColumn fx:id="actionCol" text="Actions" prefWidth="460" />
-            <TableColumn fx:id="statusCol" text="Status" prefWidth="200"/>
+            <TableColumn fx:id="idCol" text="Contract ID" prefWidth="450" />
+            <TableColumn fx:id="actionCol" text="Actions" prefWidth="500" />
+            <TableColumn fx:id="statusCol" text="Status" prefWidth="250"/>
         </columns>
     </TableView>
 

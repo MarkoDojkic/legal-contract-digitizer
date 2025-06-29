@@ -80,8 +80,7 @@ public class MainController implements WindowAwareController {
         setupTable();
 
         uploadBtn.setOnAction(e -> {
-            Stage stage = new Stage();
-            windowLauncher.launchFilePickerWindow(stage, "Upload New Contract", 400, 200, file -> {
+            windowLauncher.launchFilePickerWindow("Upload New Contract", 400, 200, file -> {
                 try {
                     ResponseEntity<UploadResponseDTO> response = httpClientUtil.postWithFile(
                             baseUrl + "/upload",
@@ -112,8 +111,8 @@ public class MainController implements WindowAwareController {
             }
 
             Platform.runLater(() -> {
-                windowLauncher.launchWindow(new Stage(), "Legal contract digitizer - Login window", 500, 500, "/layout/login.fxml", Objects.requireNonNull(getClass().getResource("/static/style/login.css")).toExternalForm(), applicationContext.getBean(LoginController.class));
-                windowController.getCloseBtn().fire();
+                windowLauncher.launchWindow("Login window", 500, 500, "/layout/login.fxml", Objects.requireNonNull(getClass().getResource("/static/style/login.css")).toExternalForm(), applicationContext.getBean(LoginController.class));
+                windowController.getCloseButton().fire();
             });
         });
         refreshContracts(); // auto-load
@@ -121,8 +120,7 @@ public class MainController implements WindowAwareController {
 
     private void openWalletsManager() {
         windowLauncher.launchWindow(
-                new Stage(),
-                "Legal contract digitizer - Ethereum wallets manager",
+                "Ethereum wallets manager",
                 850,
                 500,
                 "/layout/wallet_manager.fxml",
@@ -209,8 +207,7 @@ public class MainController implements WindowAwareController {
                             EthereumActionsController controller = applicationContext.getBean(EthereumActionsController.class);
                             controller.setContract(getTableView().getItems().get(getIndex()));
                             windowLauncher.launchWindow(
-                                    new Stage(),
-                                    "Ethereum Actions - " + getTableView().getItems().get(getIndex()).id(),
+                                    "Ethereum Actions",
                                     500,
                                     800,
                                     "/layout/ethereum_actions.fxml",
@@ -232,6 +229,19 @@ public class MainController implements WindowAwareController {
     }
 
     private void setupTable() {
+        contractsTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        contractsTable.widthProperty().addListener((obs, oldWidth, newWidth) -> {
+            // Calculate total width of columns except last
+            double otherColumnsWidth = 0;
+            for (int i = 0; i < contractsTable.getColumns().size() - 1; i++) {
+                otherColumnsWidth += contractsTable.getColumns().get(i).getWidth();
+            }
+            // Set last column width to fill remaining space
+            double lastColWidth = newWidth.doubleValue() - otherColumnsWidth - 2; // -2 for padding/borders
+            if (lastColWidth > 0) {
+                contractsTable.getColumns().getLast().setPrefWidth(lastColWidth);
+            }
+        });
         idCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().id()));
         statusCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().status().toString()));
 
@@ -320,9 +330,8 @@ public class MainController implements WindowAwareController {
             controller.setClauses(clauses);
 
             windowLauncher.launchWindow(
-                    new Stage(),
-                    "Extracted legal clauses - " + contract.id(),
-                    600,
+                    "Extracted legal clauses",
+                    800,
                     800,
                     "/layout/clauses_view.fxml",
                     Objects.requireNonNull(getClass().getResource("/static/style/clauses_view.css")).toExternalForm(),
@@ -341,8 +350,7 @@ public class MainController implements WindowAwareController {
             controller.setText(soliditySource);
 
             windowLauncher.launchWindow(
-                    new Stage(),
-                    "Solidity contract - " + contract.id(),
+                    "Generated Solidity contract",
                     800,
                     800,
                     "/layout/window_preview.fxml",

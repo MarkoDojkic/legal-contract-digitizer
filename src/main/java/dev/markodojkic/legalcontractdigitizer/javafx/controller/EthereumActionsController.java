@@ -233,7 +233,6 @@ public class EthereumActionsController implements WindowAwareController {
 		String address = contract.deployedAddress();
 		if (address != null && !address.isBlank()) {
 			windowLauncher.launchWebViewWindow(
-					new Stage(),
 					"Smart Contract view on Blockchain - " + contract.id(),
 					1024,
 					1024,
@@ -266,7 +265,6 @@ public class EthereumActionsController implements WindowAwareController {
 
 	private List<Object> promptForAbiParams(String abiJson, String targetNameOrType, boolean isConstructor) {
 		try {
-			Stage paramStage = new Stage();
 			ConstructorInputController controller = applicationContext.getBean(ConstructorInputController.class);
 
 			// Always fetch wallets because the caller wallet is always needed
@@ -281,7 +279,6 @@ public class EthereumActionsController implements WindowAwareController {
 			}
 
 			ConstructorInputController inputController = windowLauncher.launchWindow(
-					paramStage,
 					isConstructor ? "Constructor Parameters" : "Function Parameters",
 					500,
 					500,
@@ -290,7 +287,6 @@ public class EthereumActionsController implements WindowAwareController {
 					controller
 			);
 			inputController.loadParamInputs(abiJson, targetNameOrType, isConstructor);
-			paramStage.showAndWait();
 
 			List<Object> params = inputController.getParams();
 			if (params == null) throw new IllegalStateException("Parameters were not provided or invalid.");

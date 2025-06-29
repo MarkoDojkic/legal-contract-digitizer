@@ -7,7 +7,6 @@
 
 /* TextArea styling */
 .text-area {
-    -fx-font-family: "Consolas", "Courier New", monospace;
     -fx-font-size: 14px;
     -fx-text-fill: #333;
     -fx-control-inner-background: #ffffff;

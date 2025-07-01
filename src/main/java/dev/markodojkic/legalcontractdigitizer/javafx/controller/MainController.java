@@ -1,9 +1,9 @@
 package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
-import dev.markodojkic.legalcontractdigitizer.dto.UploadResponseDTO;
 import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
+import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -11,20 +11,19 @@ import javafx.fxml.FXML;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
-import javafx.stage.Stage;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.NoHttpResponseException;
+import org.apache.http.client.HttpResponseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
@@ -33,11 +32,7 @@ import static dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatu
 
 @Component
 @Slf4j
-public class MainController implements WindowAwareController {
-    @Setter
-    @Getter
-    private JavaFXWindowController windowController;
-
+public class MainController extends WindowAwareController {
     @FXML private Label nameLabel;
     @FXML private Label emailLabel;
     @FXML private Label userIdLabel;
@@ -51,68 +46,62 @@ public class MainController implements WindowAwareController {
     @FXML private TableColumn<DigitalizedContract, Void> actionCol;
     @FXML private TableColumn<DigitalizedContract, String> statusCol;
 
+    private final Preferences prefs = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
     private final HttpClientUtil httpClientUtil;
-    private final WindowLauncher windowLauncher;
-    private final ApplicationContext applicationContext;
     private final String baseUrl;
-
-    @Setter
-    private Map<String, String> userData;
 
     @Autowired
     public MainController(@Value("${server.port}") Integer serverPort,
-                          WindowLauncher windowLauncher, HttpClientUtil httpClientUtil,
-                          ApplicationContext applicationContext){
+                          WindowLauncher windowLauncher,
+                          ApplicationContext applicationContext,
+                          HttpClientUtil httpClientUtil){
+        super(windowLauncher, applicationContext);
         this.baseUrl = String.format("http://localhost:%s/api/v1/contracts", serverPort);
         this.httpClientUtil = httpClientUtil;
-        this.windowLauncher = windowLauncher;
-        this.applicationContext = applicationContext;
     }
 
     @FXML
     public void initialize() {
-        if (userData != null) {
-            nameLabel.setText(userData.getOrDefault("name", "N/A"));
-            emailLabel.setText(userData.getOrDefault("email", "N/A"));
-            userIdLabel.setText(userData.getOrDefault("userId", "N/A"));
-        }
+        nameLabel.setText("Logged in as: " + prefs.get("name", "N/A"));
+        userIdLabel.setText("Google ID: " + prefs.get("userId", "N/A"));
+        emailLabel.setText("Email:" + prefs.get("email", "N/A"));
 
         setupTable();
 
-        uploadBtn.setOnAction(e -> {
-            windowLauncher.launchFilePickerWindow("Upload New Contract", 400, 200, file -> {
-                try {
-                    ResponseEntity<UploadResponseDTO> response = httpClientUtil.postWithFile(
-                            baseUrl + "/upload",
-                            null,
-                            "file",
-                            file,
-                            UploadResponseDTO.class
-                    );
+        uploadBtn.setOnAction(_ -> windowLauncher.launchFilePickerWindow("Upload New Contract", 400, 200, file -> {
+            try {
+                ResponseEntity<String> response = httpClientUtil.postWithFile(
+                        baseUrl + "/upload",
+                        null,
+                        "file",
+                        file,
+                        String.class
+                );
 
-                    if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                        refreshContracts();
-                    } else {
-                        // Show error animation or message
-                    }
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                    // Show error animation or message
-                }
-            });
-        });
+                if(response.getBody() == null) throw new NoHttpResponseException("New contract upload failed with no response");
+                else if (response.getStatusCode().is2xxSuccessful()) refreshContracts();
+                else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
+            } catch (Exception e) {
+                log.error(e.getLocalizedMessage());
+                windowLauncher.launchErrorSpecialWindow("Error occurred while uploading new contract:\n" + e.getLocalizedMessage());
+            }
+        }));
         walletsManagerBtn.setOnAction(e -> openWalletsManager());
         refreshBtn.setOnAction(e -> refreshContracts());
-        logoutBtn.setOnAction(e -> {
+        logoutBtn.setOnAction(_ -> {
             try {
                 Preferences.userNodeForPackage(LegalContractDigitizerApplication.class).clear();
-            } catch (BackingStoreException ex) {
-                log.error(ex.getLocalizedMessage());
+            } catch (BackingStoreException e) {
+                log.error(e.getLocalizedMessage());
+                windowLauncher.launchWarnSpecialWindow("Error occurred while clearing user data:\n" + e.getLocalizedMessage());
             }
+
+            AuthSession.logout();
 
             Platform.runLater(() -> {
                 windowLauncher.launchWindow("Login window", 500, 500, "/layout/login.fxml", Objects.requireNonNull(getClass().getResource("/static/style/login.css")).toExternalForm(), applicationContext.getBean(LoginController.class));
                 windowController.getCloseButton().fire();
+                windowLauncher.launchSuccessSpecialWindow("User logged out");
             });
         });
         refreshContracts(); // auto-load
@@ -163,24 +152,18 @@ public class MainController implements WindowAwareController {
 
                 viewSolidityBtn.setOnAction(e -> fetchAndShowSolidity(getTableView().getItems().get(getIndex())));
 
-                deleteBtn.setOnAction(e -> {
-                    String url = baseUrl + "/" + getTableView().getItems().get(getIndex()).id();
+                deleteBtn.setOnAction(_ -> {
                     try {
-                        ResponseEntity<Void> response = httpClientUtil.delete(url, null, Void.class);
+                        ResponseEntity<String> response = httpClientUtil.delete(baseUrl + "/" + getTableView().getItems().get(getIndex()).id(), null, Void.class);
                         if (response.getStatusCode().is2xxSuccessful()) {
                             contractsTable.getItems().remove(getTableView().getItems().get(getIndex()));
                             refreshContracts();
-                        } else {
-                            String msg = response.getStatusCode() == HttpStatus.CONFLICT
-                                    ? "Cannot delete: contract is already confirmed."
-                                    : "Deletion failed: " + response.getStatusCode();
-                            // Optionally show error UI:
-                            // showError(msg);
-                        }
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                        // Optionally show error UI:
-                        // showError("Deletion failed due to exception");
+                        } else if(response.getStatusCode() == HttpStatus.CONFLICT)
+                            windowLauncher.launchWarnSpecialWindow("Cannot delete: contract is already confirmed.");
+                        else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
+                    } catch (Exception e) {
+                        log.error(e.getLocalizedMessage());
+                        windowLauncher.launchErrorSpecialWindow("Deletion failed due to exception:\n" + e.getLocalizedMessage());
                     }
                 });
 
@@ -251,41 +234,22 @@ public class MainController implements WindowAwareController {
             @Override
             protected void updateItem(DigitalizedContract item, boolean empty) {
                 super.updateItem(item, empty);
-
-                if (empty || item == null) {
-                    getStyleClass().removeAll("UPLOADED", "CLAUSES_EXTRACTED", "SOLIDITY_GENERATED", "DEPLOYED", "CONFIRMED");
-                    setStyle("");
-                } else {
-                    // Remove old status classes to avoid accumulation
-                    getStyleClass().removeAll("UPLOADED", "CLAUSES_EXTRACTED", "SOLIDITY_GENERATED", "DEPLOYED", "CONFIRMED");
-
-                    // Add class matching the current status
-                    if (item.status() != null) {
-                        getStyleClass().add(item.status().toString());
-                    }
-                }
+                getStyleClass().removeAll(Arrays.stream(values()).map(Enum::name).toList());
+                if(!empty && item != null && item.status() != null) getStyleClass().add(item.status().toString());
             }
         });
     }
 
     private void refreshContracts() {
-        String userId = userData.get("userId");
-        if (userId == null) return;
-
-        String url = baseUrl + "/list?userId=" + userId;
-
         try {
-            ResponseEntity<DigitalizedContract[]> response = httpClientUtil.get(url, null, DigitalizedContract[].class);
+            ResponseEntity<DigitalizedContract[]> response = httpClientUtil.get(baseUrl + "/list?userId=" + prefs.get("userId", ""), null, DigitalizedContract[].class);
 
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                DigitalizedContract[] contracts = response.getBody();
-
-                Platform.runLater(() -> contractsTable.getItems().setAll(contracts));
-            } else {
-                log.error("Failed to load contracts: HTTP " + response.getStatusCode());
-            }
-        } catch (IOException e) {
-            log.error("Error refreshing contracts", e);
+            if(response.getBody() == null) throw new NoHttpResponseException("Listing user contracts failed with no response");
+            else if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> contractsTable.getItems().setAll(response.getBody()));
+            else throw new HttpResponseException(response.getStatusCode().value(), "Failed to load contracts");
+        } catch (Exception e) {
+            log.error(e.getLocalizedMessage());
+            windowLauncher.launchErrorSpecialWindow("Error occurred while reloading contracts:\n" + e.getLocalizedMessage());
         }
     }
 
@@ -307,17 +271,17 @@ public class MainController implements WindowAwareController {
 
         try {
             // Empty body for PATCH can be null or empty map depending on your implementation
-            ResponseEntity<Void> response = httpClientUtil.patch(url, null, null, Void.class);
+            ResponseEntity<String> response = httpClientUtil.patch(url, null, null, String.class);
 
-            if (response.getStatusCode().is2xxSuccessful() || contract.status().equals(CLAUSES_EXTRACTED)) {
+            if(response.getBody() == null) throw new NoHttpResponseException((contract.status() == UPLOADED ? "Clauses extraction" : "Action related to solidity contract") + " failed with no response");
+            else if (response.getStatusCode().is2xxSuccessful()) {
                 refreshContracts();
-            } else {
-                log.error("Next step failed: HTTP {}", response.getStatusCode());
-                // showError("Next step failed: HTTP " + response.getStatusCode());
-            }
+                if(response.getStatusCode().isSameCodeAs(HttpStatusCode.valueOf(HttpStatus.PARTIAL_CONTENT.value()))) windowLauncher.launchWarnSpecialWindow(response.getBody());
+                else windowLauncher.launchSuccessSpecialWindow(response.getBody());
+            } else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
         } catch (Exception e) {
-            e.printStackTrace();
-            // showError("Next step failed due to exception");
+            log.error(e.getLocalizedMessage());
+            windowLauncher.launchErrorSpecialWindow("Error occurred while performing action upon contract:\n" + e.getLocalizedMessage());
         }
     }
 
@@ -325,9 +289,10 @@ public class MainController implements WindowAwareController {
         List<String> clauses = contract.extractedClauses();
         if (clauses == null || clauses.isEmpty()) {
             log.warn("No clauses available for contract {}", contract.id());
+            windowLauncher.launchWarnSpecialWindow("No clauses available for contract: " + contract.id());
         } else {
             ClausesViewController controller = applicationContext.getBean(ClausesViewController.class);
-            controller.setClauses(clauses);
+            controller.addClauses(clauses);
 
             windowLauncher.launchWindow(
                     "Extracted legal clauses",
@@ -345,6 +310,7 @@ public class MainController implements WindowAwareController {
         String soliditySource = contract.soliditySource();
         if (soliditySource == null) {
             log.warn("Solidity source not available for contract {}", contract.id());
+            windowLauncher.launchWarnSpecialWindow("No solidity source available for contract: " + contract.id());
         } else {
             WindowPreviewController controller = applicationContext.getBean(WindowPreviewController.class);
             controller.setText(soliditySource);

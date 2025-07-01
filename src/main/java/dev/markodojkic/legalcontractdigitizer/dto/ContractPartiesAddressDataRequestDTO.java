@@ -1,6 +1,5 @@
 package dev.markodojkic.legalcontractdigitizer.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,7 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ClauseExtractionResponseDTO {
-	@NotBlank(message = "Contract text must not be blank")
-	private List<String> clauses;
+public class ContractPartiesAddressDataRequestDTO {
+    private String contractAddress;
+    private List<String> getterFunctions;
 }

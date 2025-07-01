@@ -21,7 +21,6 @@ import java.io.File;
 
 @Component
 public class JavaFXWindowController {
-
     @FXML public BorderPane borderPane;
     @FXML public Button minimizeBtn;
     @FXML public Button shrinkBtn;
@@ -33,13 +32,12 @@ public class JavaFXWindowController {
     @Getter
     @FXML private Button closeButton;
 
-    @Setter private Pane windowRoot;
+    @Getter @Setter private Pane windowRoot;
     @Setter private WindowLauncher windowLauncher;
 
     // Track states for toggling
     private boolean minimized = false;
     private boolean shrunk = false;
-
 
     @FXML
     private void initialize() {

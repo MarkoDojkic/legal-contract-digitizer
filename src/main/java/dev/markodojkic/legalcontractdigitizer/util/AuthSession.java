@@ -1,27 +1,30 @@
 package dev.markodojkic.legalcontractdigitizer.util;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.http.HttpHeaders;
 
 public class AuthSession {
-    private static String idToken;
+    @Getter
+    @Setter
+    private static String accessToken, refreshToken;
 
     private AuthSession() {
         throw new UnsupportedOperationException("Utility class should not be instantiated");
     }
 
-    public static boolean isAuthenticated() {
-        return idToken != null && !idToken.isEmpty();
-    }
-
-    public static void setIdToken(String idToken) {
-        AuthSession.idToken = idToken;
+    public static boolean hasAccessToken() {
+        return accessToken != null && !accessToken.isEmpty();
     }
 
     public static HttpHeaders createAuthHeaders() {
         HttpHeaders headers = new HttpHeaders();
-        if (isAuthenticated()) {
-            headers.setBearerAuth(idToken);
-        }
+        headers.setBearerAuth(accessToken);
         return headers;
+    }
+
+    public static void logout() {
+        accessToken = null;
+        refreshToken = null;
     }
 }

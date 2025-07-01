@@ -21,11 +21,11 @@ import java.io.File;
 @NoArgsConstructor
 public class WindowAnimator {
 
-    public static void openWindow(Pane windowRoot, HBox titleBar, HBox statusBar, StackPane contentArea) {
+    public static void openWindow(Pane windowRoot, HBox titleBar, HBox statusBar, StackPane contentArea, boolean isSpecialWindow) {
         windowRoot.setVisible(true); // needed if just added to scene
         Platform.runLater(() -> {
-            new AudioClip(new File("src/main/resources/static/audio/window_opening_sc.wav").toURI().toString()).play();
-
+            String suffix = isSpecialWindow ? "_special.wav" : "_classical.wav";
+            new AudioClip(new File("src/main/resources/static/audio/window_opening" + suffix).toURI().toString()).play();
             double targetHeight = titleBar.getHeight() + contentArea.getHeight() + statusBar.getHeight();
             double titleBarHeight = titleBar.getHeight() > 0 ? titleBar.getHeight() : 40;
             double statusBarHeight = statusBar.getHeight() > 0 ? statusBar.getHeight() : 30;
@@ -71,7 +71,7 @@ public class WindowAnimator {
     }
 
     public static void closeWindow(Pane windowPane, HBox titleBar, HBox statusBar, StackPane contentArea) {
-        new AudioClip(new File("src/main/resources/static/audio/window_closing_sc.wav").toURI().toString()).play();
+        new AudioClip(new File("src/main/resources/static/audio/window_closing.wav").toURI().toString()).play();
         double currentHeight = windowPane.getHeight();
         double titleBarHeight = titleBar.getHeight() > 0 ? titleBar.getHeight() : 40;
         double statusBarHeight = statusBar.getHeight() > 0 ? statusBar.getHeight() : 30;

@@ -3,11 +3,14 @@ package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 import dev.markodojkic.legalcontractdigitizer.dto.WalletInfo;
+import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Type;
@@ -17,10 +20,8 @@ import java.util.Arrays;
 import java.util.List;
 
 @Component
-public class ConstructorInputController implements WindowAwareController {
+public class ConstructorInputController extends WindowAwareController {
     public static final String ADDRESS = "address";
-    @Getter @Setter
-    private JavaFXWindowController windowController;
 
     @FXML private VBox dynamicFieldsBox;
     @FXML private Label titleLabel;
@@ -28,9 +29,17 @@ public class ConstructorInputController implements WindowAwareController {
     @Setter
     private List<WalletInfo> walletInfos;
 
-    private final List<String> paramTypes = new ArrayList<>();
-    private final List<Control> paramFields = new ArrayList<>();
-    private List<Object> collectedParams = null;
+    private final List<String> paramTypes;
+    private final List<Control> paramFields;
+    private final List<Object> collectedParams;
+
+    @Autowired
+    public ConstructorInputController(WindowLauncher windowLauncher, ApplicationContext applicationContext) {
+        super(windowLauncher, applicationContext);
+        paramTypes = new ArrayList<>();
+        paramFields = new ArrayList<>();
+        collectedParams = new ArrayList<>();
+    }
 
     public void loadParamInputs(String abiJson, String targetNameOrType, boolean isConstructor) {
         dynamicFieldsBox.getChildren().clear();
@@ -119,7 +128,7 @@ public class ConstructorInputController implements WindowAwareController {
     @FXML
     private void onConfirm() {
         try {
-            List<Object> result = new ArrayList<>();
+            collectedParams.clear();
             for (int i = 0; i < paramTypes.size(); i++) {
                 String type = paramTypes.get(i);
                 Control field = paramFields.get(i);
@@ -136,22 +145,19 @@ public class ConstructorInputController implements WindowAwareController {
                     throw new IllegalArgumentException("Unknown input field type");
                 }
 
-                result.add(parseParam(type, value));
+                collectedParams.add(parseParam(type, value));
             }
-
-            collectedParams = result;
-
             windowController.getCloseButton().fire();
-
         } catch (Exception e) {
-            showError("Invalid input: " + e.getMessage());
+            windowLauncher.launchErrorSpecialWindow(e.getLocalizedMessage());
         }
     }
 
     @FXML
     private void onCancel() {
-        collectedParams = null;
+        collectedParams.clear();
         windowController.getCloseButton().fire();
+        windowLauncher.launchWarnSpecialWindow("Action canceled");
     }
 
     public List<Object> getParams() {
@@ -181,13 +187,7 @@ public class ConstructorInputController implements WindowAwareController {
                 }
                 yield Boolean.parseBoolean(value);
             }
-            case "string" -> value;
-            default -> value;
+	        default -> value;
         };
-    }
-
-    private void showError(String msg) {
-        Alert alert = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);
-        alert.showAndWait();
     }
 }

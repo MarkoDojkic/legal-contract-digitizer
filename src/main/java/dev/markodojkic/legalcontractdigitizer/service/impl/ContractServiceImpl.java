@@ -19,6 +19,7 @@ import dev.markodojkic.legalcontractdigitizer.service.TokenAuthService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
 import org.web3j.utils.Convert;
@@ -32,11 +33,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ContractServiceImpl implements IContractService {
+
+	@Value("${ethereum.solidityCompilerExecutable}")
+	private String solidityCompilerExecutable;
 
 	public static final String BINARY = "binary";
 	public static final String CONTRACT_TEXT = "contractText";
@@ -118,8 +123,8 @@ public class ContractServiceImpl implements IContractService {
 				));
 			}
 		} catch (Exception e) {
-			Thread.currentThread().interrupt();
 			log.error("Failed to list contracts for userId={}", userId, e);
+			throw new ContractReadException("Failed to list contracts", e);
 		}
 		return contracts;
 	}
@@ -137,7 +142,6 @@ public class ContractServiceImpl implements IContractService {
 					.get()
 					.get();
 		} catch (Exception e) {
-			Thread.currentThread().interrupt();
 			throw new IllegalArgumentException("Failed to query Firestore", e.getCause());
 		}
 
@@ -199,12 +203,12 @@ public class ContractServiceImpl implements IContractService {
 			clauses = aiService.extractClauses(text);
 		} catch (Exception e) {
 			log.error("Failed to extract clauses for contract ID: {}", contractId, e);
-			throw new ClausesExtractionException(contractId, e);
+			throw new ClausesExtractionException(e.getLocalizedMessage());
 		}
 
 		if (clauses == null || clauses.isEmpty()) {
 			log.error("No clauses extracted for contract ID: {}", contractId);
-			throw new ClausesExtractionException(contractId, null);
+			throw new ClausesExtractionException("No clauses extracted");
 		}
 
 		docRef.update(Map.of(
@@ -269,10 +273,9 @@ public class ContractServiceImpl implements IContractService {
 		try {
 			log.info("Compiling Solidity contract for contract ID: {}", snapshot.getId());
 			result = compile(soliditySource);
-		} catch (IOException | InterruptedException | SolidityGenerationException e) {
-			Thread.currentThread().interrupt();
+		} catch (CompilationException e) {
 			log.error("Solidity compilation failed for contract ID: {}", snapshot.getId(), e);
-			throw new CompilationException(snapshot.getId(), e);
+			throw new CompilationException(e.getLocalizedMessage());
 		}
 
 		// Update the document with the binary and ABI after compilation
@@ -281,9 +284,9 @@ public class ContractServiceImpl implements IContractService {
 				"abi", result.getAbi(),
 				STATUS, ContractStatus.SOLIDITY_GENERATED.name()
 		));
-		log.info("Successfully compiled and updated contract ID: {}", snapshot.getId());
+		log.info("Successfully compiled Solidity source and updated contract ID: {}", snapshot.getId());
 
-		return soliditySource;
+		return "Successfully compiled Solidity source";
 	}
 
 	@Override
@@ -342,10 +345,9 @@ public class ContractServiceImpl implements IContractService {
 			}
 			verifyOwnership(snapshot);
 			return snapshot;
-		} catch (InterruptedException | java.util.concurrent.ExecutionException e) {
-			Thread.currentThread().interrupt();
+		} catch (InterruptedException | ExecutionException e) {
 			log.error("Error retrieving contract {}", contractId, e);
-			throw new SolidityGenerationException("Error retrieving contract: " + contractId, e);
+			throw new ContractReadException("Error retrieving contract: " + contractId, e);
 		}
 	}
 
@@ -391,41 +393,34 @@ public class ContractServiceImpl implements IContractService {
 		return new ContractDeploymentContext(userId, ethContext, contractRef);
 	}
 
-	private CompilationResultDTO compile(String soliditySource) throws IOException, InterruptedException, SolidityGenerationException {
-		Path sourceFile = Files.createTempFile("contract", ".sol");
+	private CompilationResultDTO compile(String soliditySource) throws CompilationException {
+		Path sourceFile = null;
 		try {
+			sourceFile = Files.createTempFile("contract", ".sol");
+
 			Files.writeString(sourceFile, soliditySource);
 
-			ProcessBuilder pb = new ProcessBuilder(
-					"solc",
-					"--combined-json", "abi,bin",
-					sourceFile.toAbsolutePath().toString()
-			);
-			Process process = pb.start();
+			Process process = new ProcessBuilder(solidityCompilerExecutable, "--combined-json", "abi,bin", sourceFile.toAbsolutePath().toString()).start();
 
-			String output = new String(process.getInputStream().readAllBytes());
-			int exitCode = process.waitFor();
+			if (process.waitFor() != 0) throw new CompilationException(new String(process.getErrorStream().readAllBytes()));
 
-			if (exitCode != 0) {
-				String err = new String(process.getErrorStream().readAllBytes());
-				throw new SolidityGenerationException("Solidity compilation failed: " + err, null);
-			}
-
-			JsonNode root = objectMapper.readTree(output);
-			JsonNode contractsNode = root.path(CONTRACTS);
+			JsonNode contractsNode = objectMapper.readTree(new String(process.getInputStream().readAllBytes())).path(CONTRACTS);
 			if (contractsNode.isEmpty()) {
-				throw new SolidityGenerationException("No contracts found in compilation output", null);
+				throw new CompilationException("No smart contracts found in compilation output");
 			}
 
-			String contractKey = contractsNode.fieldNames().next();
-			JsonNode contractNode = contractsNode.get(contractKey);
+			JsonNode contractNode = contractsNode.get(contractsNode.fieldNames().next());
 
-			String abi = contractNode.get("abi").toString();
-			String bin = contractNode.get("bin").asText();
+			return CompilationResultDTO.builder().abi(contractNode.get("abi").toString()).bin(contractNode.get("bin").asText()).build();
 
-			return CompilationResultDTO.builder().abi(abi).bin(bin).build();
+		} catch (Exception e){
+			throw new CompilationException(e.getLocalizedMessage());
 		} finally {
-			Files.deleteIfExists(sourceFile);
+			if(sourceFile != null) {
+				try {
+					Files.deleteIfExists(sourceFile);
+				} catch (IOException _) {}
+			}
 		}
 	}
 }

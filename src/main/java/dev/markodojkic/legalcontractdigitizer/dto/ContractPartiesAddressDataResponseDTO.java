@@ -5,13 +5,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ContractAddressGettersRequestDTO {
-    private String contractAddress;
-    private List<String> getterFunctions;
+public class ContractPartiesAddressDataResponseDTO {
+    private Map<String, String> resolvedAddresses;
 }

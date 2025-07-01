@@ -15,8 +15,13 @@ ethereum:
     id: ${ETH_CHAIN_ID:11155111}  # Defaults to Sepolia testnet chain id
   etherscan:
     url: ${ETH_ETHERSCAN_URL:https://sepolia.etherscan.io}
+  solidityCompilerExecutable: ${ETH_SOLIDITY_COMPILER_EXECUTABLE:solc}
 google:
   client:
     id: ${GOOGLE_CLIENT_ID}
     secret: ${GOOGLE_CLIENT_SECRET}
-  redirect-uri: ${GOOGLE_REDIRECT_URI:https://legal-contract-digitizer.firebaseapp.com/__/auth/handler}
+  authUrl: ${GOOGLE_AUTH_URL:https://accounts.google.com/o/oauth2/v2/auth}
+  redirectUrl: ${GOOGLE_REDIRECT_URL:https://legal-contract-digitizer.firebaseapp.com/__/auth/handler}
+  tokenUrl: ${GOOGLE_TOKEN_URL:https://oauth2.googleapis.com/token}
+  tokenInfoUrl: ${GOOGLE_TOKEN_INFO_URL:https://www.googleapis.com/oauth2/v1/tokeninfo}
+

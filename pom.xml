@@ -158,6 +158,16 @@
 			<version>9.5.0</version>
 		</dependency>
 		<dependency>
+			<groupId>com.google.api-client</groupId>
+			<artifactId>google-api-client</artifactId>
+			<version>1.30.8</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.apis</groupId>
+			<artifactId>google-api-services-oauth2</artifactId>
+			<version>v2-rev157-1.25.0</version>
+		</dependency>
+		<dependency>
 			<groupId>org.web3j</groupId>
 			<artifactId>core</artifactId>
 			<version>${web3j.version}</version>
@@ -181,6 +191,11 @@
 			<groupId>io.grpc</groupId>
 			<artifactId>grpc-netty-shaded</artifactId>
 			<version>${grpc.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+			<version>3.2.1</version>
 		</dependency>
 
 		<dependency>

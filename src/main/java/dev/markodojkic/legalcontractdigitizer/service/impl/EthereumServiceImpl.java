@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.markodojkic.legalcontractdigitizer.enums_records.EthereumContractContext;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
 import dev.markodojkic.legalcontractdigitizer.service.IEthereumService;
+import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.abi.FunctionEncoder;
@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 @Service
@@ -58,11 +57,7 @@ public class EthereumServiceImpl implements IEthereumService {
     @PostConstruct
     public void init() throws EthereumConnectionException {
         try {
-            web3j = Web3j.build(new HttpService(ethereumRpcUrl, new OkHttpClient.Builder()
-                    .connectTimeout(60, TimeUnit.SECONDS)
-                    .readTimeout(60, TimeUnit.SECONDS)
-                    .writeTimeout(60, TimeUnit.SECONDS)
-                    .build(), false));
+            web3j = Web3j.build(new HttpService(ethereumRpcUrl, HttpClientUtil.client, false));
 
             log.info("EthereumService initialized with RPC {}, chainId {}", ethereumRpcUrl, chainId);
         } catch (Exception e) {
@@ -82,7 +77,7 @@ public class EthereumServiceImpl implements IEthereumService {
             return new EthereumContractContext(binary, encodedConstructor.replaceFirst("^0x", ""));
         } catch (Exception e) {
             log.error("Failed to build deployment context", e);
-            throw new InvalidContractBinaryException("Failed to encode constructor parameters: " + e.getMessage());
+            throw new InvalidContractBinaryException("Failed to encode constructor parameters: " + e.getLocalizedMessage());
         }
     }
 
@@ -120,7 +115,7 @@ public class EthereumServiceImpl implements IEthereumService {
             return contractAddress;
         } catch (Exception e) {
             log.error("Contract deployment failed", e);
-            throw new DeploymentFailedException("Contract deployment failed: " + e.getMessage(), e);
+            throw new DeploymentFailedException("Contract deployment failed: " + e.getLocalizedMessage(), e);
         }
     }
 
@@ -161,7 +156,7 @@ public class EthereumServiceImpl implements IEthereumService {
             throw e;
         } catch (Exception e) {
             log.error("Gas estimation failed", e);
-            throw new GasEstimationFailedException("Gas estimation failed: " + e.getMessage(), e);
+            throw new GasEstimationFailedException("Gas estimation failed: " + e.getLocalizedMessage(), e);
         }
     }
 
@@ -197,7 +192,7 @@ public class EthereumServiceImpl implements IEthereumService {
 
         } catch (Exception e) {
             log.error("Failed to get contract code or destroyed flag", e);
-            throw new EthereumConnectionException("Failed to check contract existence: " + e.getMessage(), e);
+            throw new EthereumConnectionException("Failed to check contract existence: " + e.getLocalizedMessage(), e);
         }
     }
 
@@ -219,7 +214,7 @@ public class EthereumServiceImpl implements IEthereumService {
             throw new EthereumConnectionException("Failed to process transaction receipt JSON", e);
         } catch (Exception e) {
             log.error("Failed to get transaction receipt", e);
-            throw new EthereumConnectionException("Failed to get transaction receipt: " + e.getMessage(), e);
+            throw new EthereumConnectionException("Failed to get transaction receipt: " + e.getLocalizedMessage(), e);
         }
     }
 
@@ -244,7 +239,7 @@ public class EthereumServiceImpl implements IEthereumService {
             Thread.currentThread().interrupt();
             throw new DeploymentFailedException("Thread interrupted while waiting for transaction receipt", e);
         } catch (Exception e) {
-            throw new DeploymentFailedException("Failed to get transaction receipt: " + e.getMessage(), e);
+            throw new DeploymentFailedException("Failed to get transaction receipt: " + e.getLocalizedMessage(), e);
         }
     }
 
@@ -272,7 +267,7 @@ public class EthereumServiceImpl implements IEthereumService {
             String functionName,
             List<Object> params,
             BigInteger valueWei,
-            Credentials credentials) throws InvalidEthereumAddressException, InvalidFunctionCallException, EthereumConnectionException {
+            Credentials credentials) throws InvalidEthereumAddressException, InvalidFunctionCallException, GasEstimationFailedException {
 
         if (!isValidAddress(contractAddress)) {
             throw new InvalidEthereumAddressException("Invalid Ethereum address: " + contractAddress);
@@ -303,16 +298,16 @@ public class EthereumServiceImpl implements IEthereumService {
                     valueWei
             ).getTransactionHash();
 
-        } catch (InvalidFunctionCallException e) {
+        } catch (GasEstimationFailedException e) {
             throw e;
         } catch (Exception e) {
             log.error("Error invoking " + functionName + " on " + contractAddress, e);
-            throw new EthereumConnectionException("Failed to invoke function: " + e.getMessage(), e);
+            throw new InvalidFunctionCallException("Failed to invoke function: " + e.getLocalizedMessage(), e);
         }
     }
 
     @Override
-    public Map<String, String> resolveAddressGetters(String contractAddress, List<String> getterFunctions) {
+    public Map<String, String> resolveContractPartiesAddressData(String contractAddress, List<String> getterFunctions) {
         Map<String, String> results = new HashMap<>();
         for (String getter : getterFunctions) {
             try {
@@ -328,10 +323,10 @@ public class EthereumServiceImpl implements IEthereumService {
 
                 List<Type> decoded = FunctionReturnDecoder.decode(response.getValue(), function.getOutputParameters());
                 if (!decoded.isEmpty()) {
-                    results.put(getter, decoded.get(0).getValue().toString());
+                    results.put(getter, decoded.getFirst().getValue().toString());
                 }
             } catch (Exception e) {
-                results.put(getter, "ERROR");
+                results.put(getter, e.getLocalizedMessage());
                 log.warn("Error calling getter " + getter, e);
             }
         }
@@ -371,7 +366,7 @@ public class EthereumServiceImpl implements IEthereumService {
         try {
             return objectMapper.readValue(abiJson, new com.fasterxml.jackson.core.type.TypeReference<>() {});
         } catch (Exception e) {
-            throw new InvalidFunctionCallException("Failed to parse ABI: " + e.getMessage(), e);
+            throw new InvalidFunctionCallException("Failed to parse ABI: " + e.getLocalizedMessage(), e);
         }
     }
 
@@ -421,9 +416,9 @@ public class EthereumServiceImpl implements IEthereumService {
                     gasPrice // Current gas price
             );
         } catch (IOException e) {
-            throw new GasEstimationFailedException("IOException during gas estimation: " + e.getMessage(), e);
+            throw new GasEstimationFailedException("IOException during gas estimation: " + e.getLocalizedMessage(), e);
         } catch (Exception e) {
-            throw new GasEstimationFailedException("Gas estimation failed: " + e.getMessage(), e);
+            throw new GasEstimationFailedException("Gas estimation failed: " + e.getLocalizedMessage(), e);
         }
     }
 }

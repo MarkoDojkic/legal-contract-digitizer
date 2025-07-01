@@ -14,13 +14,6 @@
     -fx-background-color: transparent;
 }
 
-.content-area {
-    -fx-padding: 20;
-    -fx-border-color: #0AC9FF33;
-    -fx-border-width: 1px;
-    -fx-border-radius: 4px;
-}
-
 .title-bar {
     -fx-background-image: url('/static/images/title-bar.png');
     -fx-background-repeat: repeat-x;

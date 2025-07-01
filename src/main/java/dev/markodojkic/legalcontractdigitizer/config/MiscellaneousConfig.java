@@ -51,6 +51,6 @@ public class MiscellaneousConfig {
 
 	@Bean
 	public ObjectMapper objectMapper() {
-		return new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).enable(SerializationFeature.INDENT_OUTPUT);
+		return new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false).enable(SerializationFeature.INDENT_OUTPUT);
 	}
 }

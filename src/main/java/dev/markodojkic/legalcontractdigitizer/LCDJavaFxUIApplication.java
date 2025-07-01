@@ -1,6 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer;
 
 import javafx.application.Application;
+import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -20,6 +21,7 @@ public class LCDJavaFxUIApplication extends Application {
 
 	@Override
 	public void start(Stage stage) throws Exception {
+		Font.loadFont(getClass().getResourceAsStream("/GunshipCondensedIFSCL.ttf"), 24);
 		applicationContext.publishEvent(new StageReadyEvent(stage));
 	}
 

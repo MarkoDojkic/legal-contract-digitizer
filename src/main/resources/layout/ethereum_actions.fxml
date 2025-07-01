@@ -23,7 +23,6 @@
               vgap="8"
               alignment="CENTER"/>
     <Label fx:id="balanceLabel" text="Balance: …"/>
-    <Label fx:id="confirmedResultLabel"/>
 
     <Button text="Get Transaction Receipt" fx:id="getReceiptBtn"/>
     <!-- TextField to input transaction hash -->

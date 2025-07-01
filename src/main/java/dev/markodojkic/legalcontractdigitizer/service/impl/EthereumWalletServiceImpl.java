@@ -14,8 +14,12 @@ import java.io.File;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 
 @Service
 @Slf4j
@@ -28,7 +32,13 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 	@Value("${ethereum.walletKeystore.password}")
 	private String walletKeystorePassword;
 
-	private final List<WalletInfo> wallets = new ArrayList<>();
+	// In-memory cache for wallets list
+	private Cache<String, List<WalletInfo>> walletsCache = Caffeine.newBuilder()
+			.expireAfterWrite(60, TimeUnit.MINUTES)  // Cache expires after 60 minutes
+			.maximumSize(1)  // Only store one wallet list in cache
+			.build();
+
+	private long lastModifiedTime = 0;  // Track last modified time of the directory
 
 	@Override
 	public WalletInfo createWallet(String label) {
@@ -54,7 +64,9 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 
 			// Create WalletInfo object with the new filename and address
 			WalletInfo wallet = new WalletInfo(label, "0x" + credentials.getAddress(), BigDecimal.ZERO, newFileName);
-			wallets.add(wallet);
+
+			// Update cache
+			loadWalletsFromDirectory();
 
 			return wallet;
 		} catch (Exception e) {
@@ -64,11 +76,42 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 
 	@Override
 	public List<WalletInfo> listWallets() {
-		// Load all wallets from the directory if not already loaded
-		if (wallets.isEmpty()) {
-			loadWalletsFromDirectory();
+		// Check cache first and only load from disk if needed
+		if (walletsCache.getIfPresent("wallets") != null && !isDirectoryModified()) {
+			return walletsCache.getIfPresent("wallets");
 		}
-		return wallets;
+
+		// If no cache or directory has changed, reload wallets from disk
+		loadWalletsFromDirectory();
+		return walletsCache.getIfPresent("wallets");
+	}
+
+	private boolean isDirectoryModified() {
+		File dir = new File(KEYSTORE_DIR);
+		if (!dir.exists() || !dir.isDirectory()) {
+			return false;  // Directory doesn't exist or isn't valid
+		}
+
+		// Check if the last modified time of any file has changed
+		long latestModifiedTime = 0;
+		File[] files = dir.listFiles();
+		if (files != null) {
+			for (File file : files) {
+				if (file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches()) {
+					long fileModifiedTime = file.lastModified();
+					if (fileModifiedTime > latestModifiedTime) {
+						latestModifiedTime = fileModifiedTime;
+					}
+				}
+			}
+		}
+
+		// Compare with the last cached modification time
+		if (latestModifiedTime > lastModifiedTime) {
+			lastModifiedTime = latestModifiedTime;
+			return true;  // Directory has been modified
+		}
+		return false;  // No modification
 	}
 
 	private void loadWalletsFromDirectory() {
@@ -82,6 +125,7 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 			return; // Return if no files exist in the directory
 		}
 
+		List<WalletInfo> loadedWallets = new ArrayList<>();
 		for (File file : files) {
 			if (file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches()) {
 				// Extract label and address from filename
@@ -91,19 +135,22 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 					String address = "0x" + matcher.group(2);  // Address is the second part
 
 					try {
-						WalletInfo wallet = new WalletInfo(label, address, BigDecimal.ZERO, file.getName());
-						wallets.add(wallet);
+						loadedWallets.add(new WalletInfo(label, address, BigDecimal.ZERO, file.getName()));
 					} catch (Exception e) {
-						log.error("Failed to load wallet from file: " + file.getName(), e);
+						log.error("Failed to load wallet from file: {}", file.getName());
+						loadedWallets.add(new WalletInfo("Failed to load wallet from file: " + file.getName(), null, null, file.getName()));
 					}
 				}
 			}
 		}
+
+		// Cache the loaded wallets
+		walletsCache.put("wallets", loadedWallets);
 	}
 
 	@Override
 	public Credentials loadCredentials(String address) {
-		return wallets.stream()
+		return walletsCache.getIfPresent("wallets").stream()
 				.filter(w -> w.getAddress().equalsIgnoreCase(address))
 				.findFirst()
 				.map(w -> {

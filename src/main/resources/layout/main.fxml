@@ -6,10 +6,9 @@
 <VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
       alignment="CENTER" spacing="20">
 
-    <Label text="🎉 Welcome!" style="-fx-font-size: 24px; -fx-font-weight: bold;" />
-    <Label fx:id="nameLabel" styleClass="main-label"/>
-    <Label fx:id="emailLabel" styleClass="main-label"/>
+    <Label fx:id="nameLabel" styleClass="main-label" />
     <Label fx:id="userIdLabel" styleClass="main-label"/>
+    <Label fx:id="emailLabel" styleClass="main-label"/>
 
     <HBox spacing="40" alignment="CENTER">
         <Button text="Upload new contract" fx:id="uploadBtn"/>

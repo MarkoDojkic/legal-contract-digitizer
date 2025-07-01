@@ -36,7 +36,7 @@
 
     <!-- Content Area -->
     <center>
-        <StackPane fx:id="contentArea" styleClass="content-area"/>
+        <StackPane fx:id="contentArea"/>
     </center>
 
     <!-- Status Bar -->

@@ -29,7 +29,7 @@ public class AIService {
 		String prompt = """
                 Extract all legal clauses from this legal contract text.
                 Return the result as a JSON array of clauses (strings).
-                Do not explain, do not include anything else but the JSON array (e.g. ["Clause 1", "Clause 2"]). 
+                Do not explain, do not include anything else but the JSON array (e.g. ["Clause 1", "Clause 2"]).
                 Do not include any markdown formatting or code blocks nor ```json tags.
                 Legal Contract Text:
                 "%s"
@@ -126,7 +126,7 @@ public class AIService {
 					log.warn("Rate limit or server error, retrying after delay...");
 					try {
 						Thread.sleep(1000L);
-					} catch (InterruptedException ex) {
+					} catch (InterruptedException _) {
 						Thread.currentThread().interrupt();
 					}
 					continue;
@@ -150,7 +150,7 @@ public class AIService {
 			);
 		} catch (Exception e) {
 			log.error("Failed to parse clause list: {}", jsonArrayString, e);
-			throw new ClausesExtractionException("Error parsing extracted clauses.", e);
+			throw new ClausesExtractionException(e.getLocalizedMessage());
 		}
 	}
 

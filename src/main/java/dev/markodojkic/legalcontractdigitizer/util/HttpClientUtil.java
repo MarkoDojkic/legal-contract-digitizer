@@ -3,7 +3,6 @@ package dev.markodojkic.legalcontractdigitizer.util;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import okhttp3.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -18,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class HttpClientUtil {
 
-	private static final OkHttpClient client = new OkHttpClient.Builder()
+	public static final OkHttpClient client = new OkHttpClient.Builder()
 			.connectTimeout(60, TimeUnit.SECONDS)
 			.readTimeout(60, TimeUnit.SECONDS)
 			.writeTimeout(60, TimeUnit.SECONDS)
@@ -109,10 +108,9 @@ public class HttpClientUtil {
 			Type responseType
 	) throws IOException {
 		RequestBody requestBody;
-		if (body != null) {
-			String json = objectMapper.writeValueAsString(body);
-			requestBody = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
-		} else {
+		if (body != null)
+			requestBody = body instanceof FormBody ? (FormBody) body : RequestBody.create(objectMapper.writeValueAsString(body), MediaType.get("application/json; charset=utf-8"));
+		else {
 			requestBody = RequestBody.create(new byte[0]);
 		}
 
@@ -133,10 +131,9 @@ public class HttpClientUtil {
 			Type responseType
 	) throws IOException {
 		RequestBody requestBody;
-		if (body != null) {
-			String json = objectMapper.writeValueAsString(body);
-			requestBody = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
-		} else {
+		if (body != null)
+			requestBody = body instanceof FormBody ? (FormBody) body : RequestBody.create(objectMapper.writeValueAsString(body), MediaType.get("application/json; charset=utf-8"));
+		else {
 			requestBody = RequestBody.create(new byte[0]);
 		}
 

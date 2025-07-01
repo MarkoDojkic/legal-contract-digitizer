@@ -45,7 +45,6 @@ public class SecurityConfig {
         return http.httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll()
                 )

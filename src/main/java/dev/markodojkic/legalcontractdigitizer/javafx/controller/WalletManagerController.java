@@ -11,24 +11,19 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.util.Callback;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.List;
 
-@Slf4j
 @Component
-public class WalletManagerController implements WindowAwareController {
-	@Getter
-	@Setter
-	private JavaFXWindowController windowController;
-
+@Slf4j
+public class WalletManagerController extends WindowAwareController {
 	@FXML private TextField walletLabelField;
 	@FXML private Button registerButton;
 	@FXML private TableView<WalletInfo> walletTable;
@@ -37,7 +32,6 @@ public class WalletManagerController implements WindowAwareController {
 	@FXML private TableColumn<WalletInfo, BigDecimal> balanceColumn;
 	@FXML private TableColumn<WalletInfo, Void> actionColumn;
 
-	private final WindowLauncher windowLauncher;
 	private final HttpClientUtil httpClientUtil;
 	private final String baseUrl;
 	private final String etherscanUrl;
@@ -45,11 +39,13 @@ public class WalletManagerController implements WindowAwareController {
 	@Autowired
 	public WalletManagerController(@Value("${server.port}") Integer serverPort,
 	                               @Value("${ethereum.etherscan.url}") String etherscanUrl,
-	                               HttpClientUtil httpClientUtil, WindowLauncher windowLauncher){
+	                               WindowLauncher windowLauncher,
+	                               ApplicationContext applicationContext,
+	                               HttpClientUtil httpClientUtil){
+		super(windowLauncher, applicationContext);
 		this.baseUrl = String.format("http://localhost:%s/api/v1/ethereum", serverPort);
 		this.etherscanUrl = etherscanUrl;
 		this.httpClientUtil = httpClientUtil;
-		this.windowLauncher = windowLauncher;
 	}
 
 	@FXML
@@ -84,15 +80,13 @@ public class WalletManagerController implements WindowAwareController {
 	private void registerWallet() {
 		String label = walletLabelField.getText().trim();
 		if (label.isEmpty()) {
-			showError("Label cannot be empty");
+			windowLauncher.launchWarnSpecialWindow("New wallet must have label");
 			return;
 		}
 
 		try {
-			String url = baseUrl + "/register?label=" + label;
-
 			ResponseEntity<WalletInfo> response = httpClientUtil.post(
-					url,
+					baseUrl + "/register?label=" + label,
 					null,
 					null,
 					WalletInfo.class
@@ -105,17 +99,15 @@ public class WalletManagerController implements WindowAwareController {
 				throw new WalletCreationException("Internal server error", null);
 			}
 		} catch (Exception e) {
-			log.error("Error registering wallet", e);
-			Platform.runLater(() -> showError("Failed to register wallet: " + e.getMessage()));
+			log.error("Error occurred while creating new wallet", e);
+			windowLauncher.launchErrorSpecialWindow("Error occurred while creating new wallet:\n" + e.getLocalizedMessage());
 		}
 	}
 
 	private void loadWallets() {
 		try {
-			String url = baseUrl + "/getAvailableWallets";
-
 			ResponseEntity<List<WalletInfo>> response = httpClientUtil.get(
-					url,
+					baseUrl + "/getAvailableWallets",
 					null,
 					new TypeToken<List<WalletInfo>>() {
 					}.getType()
@@ -124,8 +116,8 @@ public class WalletManagerController implements WindowAwareController {
 			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) Platform.runLater(() -> walletTable.getItems().setAll(response.getBody()));
 			else throw new WalletNotFoundException("No ethereum wallets found.");
 		} catch (Exception e) {
-			log.error("Error loading wallets", e);
-			Platform.runLater(() -> showError("Failed to load wallets: " + e.getMessage()));
+			log.error("Error occurred while loading wallets", e);
+			windowLauncher.launchErrorSpecialWindow("Error occurred while loading wallets:\n" + e.getLocalizedMessage());
 		}
 	}
 
@@ -151,10 +143,5 @@ public class WalletManagerController implements WindowAwareController {
 				setGraphic(empty ? null : viewBtn);
 			}
 		});
-	}
-
-	private void showError(String msg) {
-		Alert alert = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);
-		alert.showAndWait();
 	}
 }

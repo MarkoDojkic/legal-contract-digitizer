@@ -1,32 +1,34 @@
 package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
+import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import javafx.fxml.FXML;
 import javafx.scene.control.ListView;
-import lombok.Getter;
-import lombok.Setter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
-public class ClausesViewController implements WindowAwareController {
-	@Setter
-	@Getter
-	private JavaFXWindowController windowController;
-
+public class ClausesViewController extends WindowAwareController {
 	@FXML
 	private ListView<String> clausesListView;
 
-	private List<String> pendingClauses;
+	private final List<String> pendingClauses;
+
+	@Autowired
+	public ClausesViewController(WindowLauncher windowLauncher, ApplicationContext applicationContext) {
+		super(windowLauncher, applicationContext);
+		this.pendingClauses = new ArrayList<>();
+	}
 
 	@FXML
 	public void initialize() {
-		if (pendingClauses != null) {
-			clausesListView.getItems().setAll(pendingClauses);
-		}
+		clausesListView.getItems().setAll(pendingClauses);
 	}
 
-	public void setClauses(List<String> clauses) {
-		pendingClauses = clauses;
+	public void addClauses(List<String> clauses) {
+		pendingClauses.addAll(clauses);
 	}
 }

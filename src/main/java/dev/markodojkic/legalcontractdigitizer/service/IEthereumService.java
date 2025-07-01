@@ -27,8 +27,8 @@ public interface IEthereumService {
 			String functionName,
 			List<Object> params,
 			BigInteger valueWei,
-			Credentials credentials) throws InvalidEthereumAddressException, InvalidFunctionCallException, EthereumConnectionException;
+			Credentials credentials) throws InvalidEthereumAddressException, InvalidFunctionCallException, GasEstimationFailedException;
 
-	Map<String, String> resolveAddressGetters(String contractAddress, List<String> getterFunctions);
+	Map<String, String> resolveContractPartiesAddressData(String contractAddress, List<String> getterFunctions);
 
 }

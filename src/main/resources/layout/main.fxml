@@ -3,26 +3,22 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
-<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
-      alignment="CENTER" spacing="20">
-
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml" alignment="CENTER" spacing="20">
     <Label fx:id="nameLabel" styleClass="main-label" />
-    <Label fx:id="userIdLabel" styleClass="main-label"/>
     <Label fx:id="emailLabel" styleClass="main-label"/>
 
     <HBox spacing="40" alignment="CENTER">
-        <Button text="Upload new contract" fx:id="uploadBtn"/>
-        <Button text="Manage Ethereum wallets" fx:id="walletsManagerBtn"/>
-        <Button text="Refresh List" fx:id="refreshBtn"/>
-        <Button text="Logout" fx:id="logoutBtn"/>
+        <Button fx:id="uploadBtn" text="Upload new contract"/>
+        <Button fx:id="walletsManagerBtn" text="Manage Ethereum wallets"/>
+        <Button fx:id="refreshBtn" text="Refresh List"/>
+        <Button fx:id="logoutBtn" text="Logout"/>
     </HBox>
 
-    <TableView fx:id="contractsTable" prefHeight="600" prefWidth="1200">
+    <TableView fx:id="contractsTable" prefHeight="800">
         <columns>
-            <TableColumn fx:id="idCol" text="Contract ID" prefWidth="450" />
-            <TableColumn fx:id="actionCol" text="Actions" prefWidth="500" />
-            <TableColumn fx:id="statusCol" text="Status" prefWidth="250"/>
+            <TableColumn fx:id="idCol" text="Contract ID" prefWidth="340" />
+            <TableColumn fx:id="actionCol" text="Actions" prefWidth="759" />
+            <TableColumn fx:id="statusCol" text="Status" prefWidth="175"/>
         </columns>
     </TableView>
-
 </VBox>

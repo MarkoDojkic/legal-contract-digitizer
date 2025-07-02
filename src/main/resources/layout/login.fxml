@@ -6,11 +6,9 @@
 <?import javafx.scene.layout.VBox?>
 <StackPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
            styleClass="login-pane">
-
     <VBox spacing="15" alignment="CENTER">
         <Label text="Login" styleClass="login-title" />
-        <Button text="Login with Google" onAction="#onLoginButtonClicked" fx:id="loginButton"/>
+        <Button fx:id="loginButton" text="Login with Google" onAction="#onLoginButtonClicked"/>
         <Label fx:id="messageLabel" text="Please log in to continue." styleClass="login-message" wrapText="true" />
     </VBox>
-
 </StackPane>

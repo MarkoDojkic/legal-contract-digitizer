@@ -3,34 +3,17 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<BorderPane fx:id="borderPane"
-            xmlns:fx="http://javafx.com/fxml"
-            fx:controller="dev.markodojkic.legalcontractdigitizer.javafx.controller.JavaFXWindowController"
-            styleClass="main-window">
-
-    <!-- Title Bar -->
+<BorderPane fx:id="borderPane" xmlns:fx="http://javafx.com/fxml" fx:controller="dev.markodojkic.legalcontractdigitizer.javafx.controller.JavaFXWindowController" styleClass="main-window">
     <top>
-        <HBox fx:id="titleBar"
-              styleClass="title-bar"
-              spacing="6"
-              minHeight="26" maxHeight="26">
+        <HBox fx:id="titleBar" styleClass="title-bar" spacing="6" minHeight="26" maxHeight="26">
             <padding>
                 <Insets top="8" right="8" bottom="2" left="8"/>
             </padding>
-            <Button fx:id="minimizeBtn"
-                    styleClass="minimize-btn"
-                    minWidth="82" maxWidth="82"
-                    minHeight="14" maxHeight="14"/>
-            <Button fx:id="shrinkBtn"
-                    styleClass="shrink-btn"
-                    minWidth="81" maxWidth="81"
-                    minHeight="14" maxHeight="14"/>
+            <Button fx:id="minimizeBtn" styleClass="minimize-btn" minWidth="82" maxWidth="82" minHeight="14" maxHeight="14"/>
+            <Button fx:id="shrinkBtn" styleClass="shrink-btn" minWidth="81" maxWidth="81" minHeight="14" maxHeight="14"/>
             <Label fx:id="titleLabel" HBox.hgrow="ALWAYS" />
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="closeButton"
-                    styleClass="close-btn"
-                    minWidth="31" maxWidth="31"
-                    minHeight="14" maxHeight="14"/>
+            <Button fx:id="closeButton" styleClass="close-btn" minWidth="31" maxWidth="31" minHeight="14" maxHeight="14"/>
         </HBox>
     </top>
 
@@ -41,12 +24,7 @@
 
     <!-- Status Bar -->
     <bottom>
-        <HBox fx:id="statusBar"
-              styleClass="status-bar"
-              alignment="CENTER_RIGHT"
-              minHeight="40" maxHeight="40"
-              spacing="4">
-
+        <HBox fx:id="statusBar" styleClass="status-bar" alignment="CENTER_RIGHT" minHeight="40" maxHeight="40" spacing="4">
             <padding>
                 <Insets right="20" left="20"/>
             </padding>

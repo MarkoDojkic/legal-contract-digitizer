@@ -5,12 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
-import dev.markodojkic.legalcontractdigitizer.dto.ContractPartiesAddressDataRequestDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.ContractPartiesAddressDataResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.GasEstimateResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.WalletInfo;
-import dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus;
-import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.model.*;
 import dev.markodojkic.legalcontractdigitizer.exception.InvalidFunctionCallException;
 import dev.markodojkic.legalcontractdigitizer.exception.WalletNotFoundException;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
@@ -26,6 +21,7 @@ import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.HttpResponseException;
 import org.jetbrains.annotations.NotNull;
@@ -121,30 +117,26 @@ public class EthereumActionsController extends WindowAwareController {
 
 	private void estimateGas() {
 		try {
-			List<Object> constructorParams = promptForAbiParams(contract.abi(), "constructor", true);
+			Pair<String, List<Object>> abiResult = promptForAbiParams(contract.abi(), "constructor", true);
 
 			ResponseEntity<GasEstimateResponseDTO> response = httpClientUtil.post(
 					baseUrl + "/estimate-gas",
 					null,
-					Map.of(
-							"contractId", contract.id(),
-							"deployerWalletAddress", constructorParams.removeFirst().toString(),
-							"constructorParams", constructorParams
-					),
+					new DeploymentRequestDTO(contract.id(), abiResult.getLeft(), abiResult.getRight()),
 					GasEstimateResponseDTO.class
 			);
 
 			if(response.getBody() == null) throw new NoHttpResponseException("Gas estimation failed with no response");
 			else if (response.getStatusCode().is2xxSuccessful())
 				Platform.runLater(() -> {
-					gasResultLabel.setText("Gas Limit: " + response.getBody().getGasLimit() +
-											"\nGas Price: " + Convert.fromWei(new BigDecimal(response.getBody().getGasPrice()), Convert.Unit.GWEI)
-											.setScale(2, RoundingMode.HALF_UP).toPlainString() + " Gwei" +
-											"\nEstimated Cost: " + Convert.fromWei(new BigDecimal(response.getBody().getTotalCost()), Convert.Unit.ETHER)
+					gasResultLabel.setText("Gas Limit: " + String.format("%,d", response.getBody().gasLimit()) +
+											"\nGas Price: " + Convert.fromWei(new BigDecimal(response.getBody().gasPriceWei()), Convert.Unit.GWEI)
+											.setScale(6, RoundingMode.HALF_UP).toPlainString() + " Gwei" +
+											"\nEstimated Cost: " + Convert.fromWei(new BigDecimal(response.getBody().gasPriceWei().multiply(response.getBody().gasLimit())), Convert.Unit.ETHER)
 											.setScale(6, RoundingMode.HALF_UP).toPlainString() + " Sepolia ETH");
 					windowLauncher.launchSuccessSpecialWindow("Gas estimation completed successfully for contract: " + contract.id());
 				});
-			else throw new HttpResponseException(response.getStatusCode().value(), response.getBody().getMessage());
+			else throw new HttpResponseException(response.getStatusCode().value(), response.getBody().message());
 		} catch (Exception e) {
 			log.error(e.getLocalizedMessage());
 			windowLauncher.launchErrorSpecialWindow("Error occurred while estimating gas required to deploy a contract:\n" + e.getLocalizedMessage());
@@ -153,16 +145,12 @@ public class EthereumActionsController extends WindowAwareController {
 
 	private void deployContract() {
 		try {
-			var constructorParams = promptForAbiParams(contract.abi(), "constructor", true);
+			Pair<String, List<Object>> abiResult = promptForAbiParams(contract.abi(), "constructor", true);
 
 			ResponseEntity<String> response = httpClientUtil.post(
 					baseUrl + "/deploy-contract",
 					null,
-					Map.of(
-							"contractId", contract.id(),
-							"deployerWalletAddress", constructorParams.removeFirst().toString(),
-							"constructorParams", constructorParams
-					),
+					new DeploymentRequestDTO(contract.id(), abiResult.getLeft(), abiResult.getRight()),
 					String.class
 			);
 
@@ -234,7 +222,7 @@ public class EthereumActionsController extends WindowAwareController {
 		}
 	}
 
-	private List<Object> promptForAbiParams(String abiJson, String targetNameOrType, boolean isConstructor) throws IllegalStateException {
+	private Pair<String, List<Object>> promptForAbiParams(String abiJson, String targetNameOrType, boolean isConstructor) throws IllegalStateException {
 		try {
 			ConstructorInputController controller = applicationContext.getBean(ConstructorInputController.class);
 
@@ -242,11 +230,8 @@ public class EthereumActionsController extends WindowAwareController {
 					baseUrl + "/getAvailableWallets", null, new TypeToken<List<WalletInfo>>() {}.getType()
 			);
 
-			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-				controller.setWalletInfos(response.getBody());
-			} else if (isConstructor) {
-				throw new WalletNotFoundException("No ethereum wallets found.");
-			}
+			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) controller.setWalletInfos(response.getBody());
+			else if (isConstructor) throw new WalletNotFoundException("No ethereum wallets found.");
 
 			ConstructorInputController inputController = windowLauncher.launchWindow(
 					isConstructor ? "Constructor Parameters" : "Function Parameters",
@@ -260,7 +245,7 @@ public class EthereumActionsController extends WindowAwareController {
 
 			List<Object> params = inputController.getParams();
 			if (params == null) throw new IllegalStateException("Parameters were not provided or invalid.");
-			return params;
+			return Pair.of(params.removeFirst().toString(), params);
 		} catch (Exception e) {
 			log.error("Error occurred while creating params", e);
 			throw new IllegalStateException(e.getLocalizedMessage());
@@ -273,7 +258,7 @@ public class EthereumActionsController extends WindowAwareController {
 
 			if(response.getBody() == null) throw new NoHttpResponseException("Smart contract current balance retrieval failed with no response");
 			else if (response.getStatusCode().is2xxSuccessful())
-				Platform.runLater(() -> balanceLabel.setText("Balance: " + response.getBody() + " Sepolia ETH"));
+				Platform.runLater(() -> balanceLabel.setText("Balance \uD83E\uDE99: " + response.getBody() + " Sepolia ETH"));
 			else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
 		} catch (Exception e) {
 			log.error(e.getLocalizedMessage());
@@ -283,12 +268,8 @@ public class EthereumActionsController extends WindowAwareController {
 
 	private void invokeFunction(String fn, String callerWallet, List<Object> params, BigInteger valueWei) {
 		try {
-			ResponseEntity<String> response = httpClientUtil.post(baseUrl + "/" + contract.deployedAddress() + "/invoke", null, Map.of(
-					"functionName", fn,
-					"params", params,
-					"valueWei", valueWei.toString(),  // Send as string to avoid JSON issues with BigInteger
-					"requestedByWalletAddress", callerWallet
-			), String.class);
+			ResponseEntity<String> response = httpClientUtil.post(baseUrl + "/" + contract.deployedAddress() + "/invoke", null,
+					new ContractFunctionRequestDTO(fn, params, valueWei.toString(), callerWallet), String.class);
 
 			if(response.getBody() == null) throw new NoHttpResponseException("Deployed contract confirmation check failed with no response");
 			else if (response.getStatusCode().is2xxSuccessful())
@@ -354,17 +335,15 @@ public class EthereumActionsController extends WindowAwareController {
 			}
 
 			if (!functionGetters.isEmpty()) {
-				var req = new ContractPartiesAddressDataRequestDTO(contract.deployedAddress(), functionGetters);
-
 				ResponseEntity<ContractPartiesAddressDataResponseDTO> response = httpClientUtil.post(
 						baseUrl + "/resolveContractPartiesAddressData",
 						null,
-						req,
+						new ContractPartiesAddressDataRequestDTO(contract.deployedAddress(), functionGetters),
 						ContractPartiesAddressDataResponseDTO.class
 				);
 
 				if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-					Map<String, String> resultMap = response.getBody().getResolvedAddresses();
+					Map<String, String> resultMap = response.getBody().resolvedAddresses();
 
 					VBox getterBox = new VBox(5);
 					getterBox.setPadding(new Insets(10));
@@ -389,19 +368,17 @@ public class EthereumActionsController extends WindowAwareController {
 		fnButton.setOnAction(_ -> {
 			try {
 				// Prompt user for all params including caller wallet as first param
-				List<Object> params = promptForAbiParams(contract.abi(), fnName, false);
-				if (params.isEmpty()) {
+				Pair<String, List<Object>> abiResult = promptForAbiParams(contract.abi(), fnName, false);
+				if (abiResult.getLeft().isEmpty() || abiResult.getRight().isEmpty()) {
 					windowLauncher.launchWarnSpecialWindow("Invoking action failure:\nNo parameters provided");
 					return;
 				}
 
 				// Validate caller wallet address - must be first param
-				if (!params.getFirst().toString().matches("^0x[0-9a-fA-F]{40}$")) {
+				if (!abiResult.getLeft().matches("^0x[0-9a-fA-F]{40}$")) {
 					windowLauncher.launchWarnSpecialWindow("Invoking action failure:\nMissing or invalid caller wallet address");
 					return;
 				}
-
-				String callerWallet = (String) params.removeFirst();
 
 				BigInteger valueWei = BigInteger.ZERO;
 
@@ -425,9 +402,7 @@ public class EthereumActionsController extends WindowAwareController {
 					valueWei = weiAmount.get();
 				}
 
-				// Call backend invokeFunction with function name, caller wallet, params, and valueWei
-				invokeFunction(fnName, callerWallet, params, valueWei);
-
+				invokeFunction(fnName, abiResult.getLeft(), abiResult.getRight(), valueWei);
 			} catch (IllegalArgumentException illegalArgumentException){
 				log.warn(illegalArgumentException.getLocalizedMessage());
 				windowLauncher.launchWarnSpecialWindow("Invoking action failure:\n" + illegalArgumentException.getLocalizedMessage());

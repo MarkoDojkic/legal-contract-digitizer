@@ -1,7 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer.exception;
 
 public class EthereumConnectionException extends Exception {
-	public EthereumConnectionException(String message, Throwable cause) {
-		super(message, cause);
+	public EthereumConnectionException(String message) {
+		super(message);
 	}
 }

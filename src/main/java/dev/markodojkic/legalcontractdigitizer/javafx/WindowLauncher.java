@@ -1,7 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer.javafx;
 
-import dev.markodojkic.legalcontractdigitizer.enums_records.SpecialBackgroundType;
-import dev.markodojkic.legalcontractdigitizer.enums_records.WebViewWindow;
+import dev.markodojkic.legalcontractdigitizer.model.SpecialBackgroundType;
+import dev.markodojkic.legalcontractdigitizer.model.WebViewWindow;
 import dev.markodojkic.legalcontractdigitizer.javafx.controller.JavaFXWindowController;
 import dev.markodojkic.legalcontractdigitizer.javafx.controller.WindowAwareController;
 import javafx.animation.PauseTransition;

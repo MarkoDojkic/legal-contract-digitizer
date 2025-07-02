@@ -6,7 +6,7 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
-import dev.markodojkic.legalcontractdigitizer.enums_records.WebViewWindow;
+import dev.markodojkic.legalcontractdigitizer.model.WebViewWindow;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import javafx.application.Platform;
@@ -41,7 +41,7 @@ public class LoginController extends WindowAwareController {
                            WindowLauncher windowLauncher,
                            ApplicationContext applicationContext) {
         super(windowLauncher, applicationContext);
-        this.googleAuthUrl = String.format("%s?client_id=%s&redirect_uri=%s&response_type=code&scope=openid%%20email%%20profile", googleAuthUrl, clientId, googleRedirectUrl);
+        this.googleAuthUrl = String.format("%s?client_id=%s&redirect_uri=%s&response_type=code&scope=openid%%20email%%20profile&access_type=offline&prompt=consent", googleAuthUrl, clientId, googleRedirectUrl);
         this.googleRedirectUrl = googleRedirectUrl;
 
         // Initialize Google AuthorizationCodeFlow
@@ -51,8 +51,6 @@ public class LoginController extends WindowAwareController {
                     clientId,
                     clientSecret,
                     Collections.singleton("openid profile email"))
-                    .setAccessType("offline") // This ensures that we get a refresh token
-                    .setApprovalPrompt("auto")
                     .build();
         }
 
@@ -60,6 +58,8 @@ public class LoginController extends WindowAwareController {
 
     @FXML
     public void onLoginButtonClicked() {
+        AuthSession.setAccessToken(prefs.get("accessToken", null));
+        AuthSession.setRefreshToken(prefs.get("refreshToken", null));
         if (AuthSession.hasAccessToken()) login("");
         else launchGoogleSignInFlow();
     }
@@ -89,14 +89,13 @@ public class LoginController extends WindowAwareController {
                     .setRedirectUri(googleRedirectUrl)
                     .execute();
 
-            String accessToken = tokenResponse.getAccessToken();
-            String refreshToken = tokenResponse.getRefreshToken();
-            String idToken = tokenResponse.getIdToken();
-
             // Save tokens and login
-            AuthSession.setAccessToken(accessToken);
-            AuthSession.setRefreshToken(refreshToken);
-            login(idToken);
+            prefs.put("accessToken", tokenResponse.getAccessToken());
+            prefs.put("refreshToken", tokenResponse.getRefreshToken());
+
+            AuthSession.setAccessToken(tokenResponse.getAccessToken());
+            AuthSession.setRefreshToken(tokenResponse.getRefreshToken());
+            login(tokenResponse.getIdToken());
         } catch (IOException e) {
             log.error("Error occurred during token exchange: {}", e.getLocalizedMessage());
             windowLauncher.launchErrorSpecialWindow("Error occurred during token exchange: " + e.getLocalizedMessage());
@@ -114,8 +113,7 @@ public class LoginController extends WindowAwareController {
                 // Store this user data for use in the app
                 prefs.put("name", jsonObject.get("name").getAsString());
                 prefs.put("email", jsonObject.get("email").getAsString());
-                prefs.put("userId", jsonObject.get("sub").getAsString());
-            } else {
+            } else if(!AuthSession.hasAccessToken()) {
                 throw new Exception("Invalid ID token structure.");
             }
 
@@ -151,7 +149,7 @@ public class LoginController extends WindowAwareController {
                     if (code != null) exchangeCodeForTokens(code);
                     googleLoginWindow.controller().getCloseButton().fire();
                 });
-            } else if (newLoc.contains("error=")) {
+            } else if (newLoc != null && newLoc.contains("error=")) {
                 String error = extractQueryParam(newLoc, "error");
                 windowLauncher.launchErrorSpecialWindow("Google login window was redirected to: " + (error != null ? error : "Unknown"));
 

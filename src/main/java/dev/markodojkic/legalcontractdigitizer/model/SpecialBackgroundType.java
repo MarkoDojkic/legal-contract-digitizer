@@ -1,4 +1,4 @@
-package dev.markodojkic.legalcontractdigitizer.enums_records;
+package dev.markodojkic.legalcontractdigitizer.model;
 
 import javafx.scene.paint.Color;
 import lombok.Getter;

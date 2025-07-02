@@ -7,7 +7,6 @@
       alignment="CENTER" spacing="20">
 
     <Label fx:id="nameLabel" styleClass="main-label" />
-    <Label fx:id="userIdLabel" styleClass="main-label"/>
     <Label fx:id="emailLabel" styleClass="main-label"/>
 
     <HBox spacing="40" alignment="CENTER">
@@ -17,11 +16,11 @@
         <Button text="Logout" fx:id="logoutBtn"/>
     </HBox>
 
-    <TableView fx:id="contractsTable" prefHeight="600" prefWidth="1200">
+    <TableView fx:id="contractsTable" prefHeight="800">
         <columns>
-            <TableColumn fx:id="idCol" text="Contract ID" prefWidth="450" />
-            <TableColumn fx:id="actionCol" text="Actions" prefWidth="500" />
-            <TableColumn fx:id="statusCol" text="Status" prefWidth="250"/>
+            <TableColumn fx:id="idCol" text="Contract ID" prefWidth="340" />
+            <TableColumn fx:id="actionCol" text="Actions" prefWidth="759" />
+            <TableColumn fx:id="statusCol" text="Status" prefWidth="175"/>
         </columns>
     </TableView>
 

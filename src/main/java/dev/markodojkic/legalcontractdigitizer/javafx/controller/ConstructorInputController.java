@@ -2,7 +2,7 @@ package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
-import dev.markodojkic.legalcontractdigitizer.dto.WalletInfo;
+import dev.markodojkic.legalcontractdigitizer.model.WalletInfo;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -137,7 +137,7 @@ public class ConstructorInputController extends WindowAwareController {
                 if (field instanceof ComboBox<?> cb) {
                     Object selected = cb.getValue();
                     if (selected == null) throw new IllegalArgumentException("Missing selection for " + type);
-                    value = (selected instanceof WalletInfo wi) ? wi.getAddress() : selected.toString();
+                    value = (selected instanceof WalletInfo wi) ? wi.address() : selected.toString();
                 } else if (field instanceof TextField tf) {
                     value = tf.getText();
                     if (value == null || value.isBlank()) throw new IllegalArgumentException("Missing input for " + type);

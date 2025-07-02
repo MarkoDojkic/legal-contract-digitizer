@@ -1,22 +1,21 @@
-package dev.markodojkic.legalcontractdigitizer.service;
+package dev.markodojkic.legalcontractdigitizer.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.markodojkic.legalcontractdigitizer.exception.ClausesExtractionException;
+import dev.markodojkic.legalcontractdigitizer.service.IAIService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
-public class AIService {
+@Slf4j
+public class AIServiceImpl implements IAIService {
 
 	private final WebClient openAiWebClient;
 	private final ObjectMapper objectMapper;
@@ -25,7 +24,8 @@ public class AIService {
 	private static final String MODEL = "gpt-4o"; // <- Upgrade to latest model
 	private static final int RETRY_LIMIT = 3;
 
-	public List<String> extractClauses(String contractText) {
+	@Override
+	public List<String> extractClauses(String contractText) throws Exception {
 		String prompt = """
                 Extract all legal clauses from this legal contract text.
                 Return the result as a JSON array of clauses (strings).
@@ -40,11 +40,12 @@ public class AIService {
 			return parseExtractedClauses(content);
 		} catch (Exception e) {
 			log.error("Failed to extract clauses from contract", e);
-			return Collections.emptyList();
+			throw e;
 		}
 	}
 
-	public String generateSolidityContract(List<String> clauses) {
+	@Override
+	public String generateSolidityContract(List<String> clauses) throws Exception {
 		StringBuilder promptBuilder = new StringBuilder();
 		promptBuilder.append("Generate a Solidity smart contract based on the following clauses:\n\n");
 
@@ -76,23 +77,21 @@ public class AIService {
 		promptBuilder.append("16. Ensure payments are transferred immediately to recipients to avoid locked funds.\n");
 		promptBuilder.append("17. Revert direct payments to the contract unless through explicit payment functions.\n");
 
-		promptBuilder.append("\nReturn ONLY the complete, production-ready Solidity code. Inline all dependencies (e.g. OpenZeppelin's Ownable, UUPSUpgradeable, ReentrancyGuard) so that the contract is fully self-contained and has no imports. Do not include markdown, explanations, or code formatting symbols.\n");
+		promptBuilder.append("\nReturn ONLY the complete, production-ready solidity code. Inline all dependencies (e.g. OpenZeppelin's Ownable, UUPSUpgradeable, ReentrancyGuard) so that the contract is fully self-contained and has no imports. Do not include markdown, explanations, or code formatting symbols.\n");
 
 		try {
 			String rawSolidity = sendChatRequest(promptBuilder.toString(), false);
 			return sanitizeSolidityCode(rawSolidity);
 		} catch (Exception e) {
-			log.error("Failed to generate Solidity contract", e);
-			return "";
+			log.error("Failed to generate solidity code", e);
+			throw e;
 		}
 	}
 
-	private String sendChatRequest(String prompt, boolean isExtraction) {
-		String rawJson = null;
-
+	private String sendChatRequest(String prompt, boolean isExtraction) throws RuntimeException {
 		for (int i = 0; i < RETRY_LIMIT; i++) {
 			try {
-				rawJson = openAiWebClient.post()
+				String rawJson = openAiWebClient.post()
 						.uri(OPENAI_API_URL)
 						.bodyValue(Map.of(
 								"model", MODEL,
@@ -113,12 +112,8 @@ public class AIService {
 
 				JsonNode root = objectMapper.readTree(rawJson);
 				JsonNode choices = root.path("choices");
-				if (choices.isArray() && !choices.isEmpty()) {
-					return choices.get(0).path("message").path("content").asText();
-				} else {
-					throw new IllegalStateException("Unexpected response format.");
-				}
-
+				if (choices.isArray() && !choices.isEmpty()) return choices.get(0).path("message").path("content").asText();
+				else throw new IllegalStateException("Unexpected response format.");
 			} catch (WebClientResponseException e) {
 				log.error("OpenAI API error: HTTP {}, body: {}", e.getStatusCode().value(), e.getResponseBodyAsString());
 
@@ -150,7 +145,7 @@ public class AIService {
 			);
 		} catch (Exception e) {
 			log.error("Failed to parse clause list: {}", jsonArrayString, e);
-			throw new ClausesExtractionException(e.getLocalizedMessage());
+			throw e;
 		}
 	}
 

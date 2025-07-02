@@ -1,16 +1,18 @@
 package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import com.google.gson.reflect.TypeToken;
-import dev.markodojkic.legalcontractdigitizer.dto.WalletInfo;
+import dev.markodojkic.legalcontractdigitizer.model.WalletInfo;
 import dev.markodojkic.legalcontractdigitizer.exception.WalletCreationException;
 import dev.markodojkic.legalcontractdigitizer.exception.WalletNotFoundException;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.util.Callback;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,30 +52,72 @@ public class WalletManagerController extends WindowAwareController {
 
 	@FXML
 	public void initialize() {
-		labelColumn.setCellValueFactory(new PropertyValueFactory<>("label"));
-		addressColumn.setCellValueFactory(new PropertyValueFactory<>("address"));
-		balanceColumn.setCellValueFactory(new PropertyValueFactory<>("balance"));
+		labelColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().label()));
+		addressColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().address()));
+		balanceColumn.setCellValueFactory(cellData -> new SimpleObjectProperty<>(cellData.getValue().balance()));
+		registerButton.setOnAction(e -> registerWallet());
 
-		balanceColumn.setCellFactory(new Callback<>() {
+		labelColumn.setCellFactory(_ -> new TableCell<>() {
 			@Override
-			public TableCell<WalletInfo, BigDecimal> call(TableColumn<WalletInfo, BigDecimal> param) {
-				return new TableCell<WalletInfo, BigDecimal>() {
-					@Override
-					protected void updateItem(BigDecimal item, boolean empty) {
-						super.updateItem(item, empty);
-						if (empty || item == null) {
-							setText(null); // Do not display anything when the cell is empty
-						} else {
-							// Format balance and add "Sepolia ETH"
-							setText(item + " Sepolia ETH");
-						}
-					}
-				};
+			protected void updateItem(String item, boolean empty) {
+				super.updateItem(item, empty);
+				if (empty || item == null) {
+					setText(null);
+				} else {
+					setText(item);
+					setAlignment(Pos.CENTER);
+				}
 			}
 		});
 
-		registerButton.setOnAction(e -> registerWallet());
-		addActionButtons();
+		addressColumn.setCellFactory(_ -> new TableCell<>() {
+			@Override
+			protected void updateItem(String item, boolean empty) {
+				super.updateItem(item, empty);
+				if (empty || item == null) {
+					setText(null);
+				} else {
+					setText(item);
+					setAlignment(Pos.CENTER);
+				}
+			}
+		});
+
+		balanceColumn.setCellFactory(_ -> new TableCell<WalletInfo, BigDecimal>() {
+			@Override
+			protected void updateItem(BigDecimal item, boolean empty) {
+				super.updateItem(item, empty);
+				if (empty || item == null) {
+					setText(null);
+				} else {
+					setText(item + " Sepolia ETH");
+					setAlignment(Pos.CENTER);
+				}
+			}
+		});
+
+		actionColumn.setCellFactory(col -> new TableCell<>() {
+			private final Button viewBtn = new Button("\uD83D\uDC41");
+
+			{
+				viewBtn.setOnAction(e -> {
+					WalletInfo wallet = getTableView().getItems().get(getIndex());
+					windowLauncher.launchWebViewWindow(
+							"View on Blockchain - " + wallet.label(),
+							1024,
+							1024,
+							String.format("%s/address/%s", etherscanUrl, wallet.address())
+					);
+				});
+			}
+
+			@Override
+			protected void updateItem(Void item, boolean empty) {
+				super.updateItem(item, empty);
+				setGraphic(empty ? null : viewBtn);
+			}
+		});
+
 		loadWallets();
 	}
 
@@ -92,12 +136,10 @@ public class WalletManagerController extends WindowAwareController {
 					WalletInfo.class
 			);
 
-			if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+			if (response.getBody() != null && response.getStatusCode().is2xxSuccessful()) {
 				walletTable.getItems().add(response.getBody());
 				walletLabelField.clear();
-			} else {
-				throw new WalletCreationException("Internal server error", null);
-			}
+			} else throw new WalletCreationException(response.getBody().label());
 		} catch (Exception e) {
 			log.error("Error occurred while creating new wallet", e);
 			windowLauncher.launchErrorSpecialWindow("Error occurred while creating new wallet:\n" + e.getLocalizedMessage());
@@ -119,29 +161,5 @@ public class WalletManagerController extends WindowAwareController {
 			log.error("Error occurred while loading wallets", e);
 			windowLauncher.launchErrorSpecialWindow("Error occurred while loading wallets:\n" + e.getLocalizedMessage());
 		}
-	}
-
-	private void addActionButtons() {
-		actionColumn.setCellFactory(col -> new TableCell<>() {
-			private final Button viewBtn = new Button("🔗");
-
-			{
-				viewBtn.setOnAction(e -> {
-					WalletInfo wallet = getTableView().getItems().get(getIndex());
-					windowLauncher.launchWebViewWindow(
-							"View on Blockchain - " + wallet.getLabel(),
-							1024,
-							1024,
-							String.format("%s/address/%s", etherscanUrl, wallet.getAddress())
-					);
-				});
-			}
-
-			@Override
-			protected void updateItem(Void item, boolean empty) {
-				super.updateItem(item, empty);
-				setGraphic(empty ? null : viewBtn);
-			}
-		});
 	}
 }

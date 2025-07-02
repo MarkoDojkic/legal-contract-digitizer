@@ -3,25 +3,20 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox xmlns="http://javafx.com/javafx"
-      xmlns:fx="http://javafx.com/fxml"
-      spacing="10"
-      alignment="CENTER"
-      prefWidth="600" prefHeight="400">
-
+<VBox xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml" spacing="10" alignment="CENTER" prefWidth="600" prefHeight="400">
     <Label text="Ethereum Wallet Manager" />
 
     <HBox spacing="10">
         <TextField fx:id="walletLabelField" promptText="Enter wallet label" prefWidth="300"/>
-        <Button text="Register Wallet" fx:id="registerButton" styleClass="btn-primary"/>
+        <Button fx:id="registerButton" text="Register Wallet" styleClass="btn-primary"/>
     </HBox>
 
     <TableView fx:id="walletTable" prefHeight="300">
         <columns>
-            <TableColumn fx:id="labelColumn" text="Label" prefWidth="100"/>
-            <TableColumn fx:id="addressColumn" text="Address" prefWidth="400"/>
-            <TableColumn fx:id="balanceColumn" text="Balance" prefWidth="250"/>
-            <TableColumn fx:id="actionColumn" prefWidth="40"/>
+            <TableColumn fx:id="labelColumn" text="Label" prefWidth="75"/>
+            <TableColumn fx:id="addressColumn" text="Address" prefWidth="420"/>
+            <TableColumn fx:id="balanceColumn" text="Balance" prefWidth="310"/>
+            <TableColumn fx:id="actionColumn" prefWidth="38"/>
         </columns>
     </TableView>
 </VBox>

@@ -1,7 +1,7 @@
 package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
-import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
+import dev.markodojkic.legalcontractdigitizer.model.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
@@ -28,14 +28,13 @@ import java.util.Objects;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
-import static dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus.*;
+import static dev.markodojkic.legalcontractdigitizer.model.ContractStatus.*;
 
 @Component
 @Slf4j
 public class MainController extends WindowAwareController {
     @FXML private Label nameLabel;
     @FXML private Label emailLabel;
-    @FXML private Label userIdLabel;
     @FXML private Button uploadBtn;
     @FXML private Button refreshBtn;
     @FXML private Button logoutBtn;
@@ -63,7 +62,6 @@ public class MainController extends WindowAwareController {
     @FXML
     public void initialize() {
         nameLabel.setText("Logged in as: " + prefs.get("name", "N/A"));
-        userIdLabel.setText("Google ID: " + prefs.get("userId", "N/A"));
         emailLabel.setText("Email:" + prefs.get("email", "N/A"));
 
         setupTable();
@@ -90,7 +88,7 @@ public class MainController extends WindowAwareController {
         refreshBtn.setOnAction(e -> refreshContracts());
         logoutBtn.setOnAction(_ -> {
             try {
-                Preferences.userNodeForPackage(LegalContractDigitizerApplication.class).clear();
+               prefs.clear();
             } catch (BackingStoreException e) {
                 log.error(e.getLocalizedMessage());
                 windowLauncher.launchWarnSpecialWindow("Error occurred while clearing user data:\n" + e.getLocalizedMessage());
@@ -104,7 +102,8 @@ public class MainController extends WindowAwareController {
                 windowLauncher.launchSuccessSpecialWindow("User logged out");
             });
         });
-        refreshContracts(); // auto-load
+
+        refreshContracts();
     }
 
     private void openWalletsManager() {
@@ -118,12 +117,15 @@ public class MainController extends WindowAwareController {
         );
     }
 
-    private void setupActionColumn() {
+    private void setupTable() {
+        idCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().id()));
+        statusCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().status().toString()));
+
         actionCol.setCellFactory(col -> new TableCell<DigitalizedContract, Void>() {
             private final Button nextStepBtn = new Button();
-            private final Button viewClausesBtn = new Button("View Clauses");
-            private final Button viewSolidityBtn = new Button("View Solidity");
-            private final Button deleteBtn = new Button("Delete");
+            private final Button viewClausesBtn = new Button("View Clauses ⚖️");
+            private final Button viewSolidityBtn = new Button("View Solidity 📃");
+            private final Button deleteBtn = new Button("Delete 🗑️");
 
             private final HBox container = new HBox(8);
 
@@ -159,7 +161,7 @@ public class MainController extends WindowAwareController {
                             contractsTable.getItems().remove(getTableView().getItems().get(getIndex()));
                             refreshContracts();
                         } else if(response.getStatusCode() == HttpStatus.CONFLICT)
-                            windowLauncher.launchWarnSpecialWindow("Cannot delete: contract is already confirmed.");
+                            windowLauncher.launchWarnSpecialWindow(response.getBody());
                         else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
                     } catch (Exception e) {
                         log.error(e.getLocalizedMessage());
@@ -169,22 +171,22 @@ public class MainController extends WindowAwareController {
 
                 switch (getTableView().getItems().get(getIndex()).status()) {
                     case UPLOADED -> {
-                        nextStepBtn.setText("Extract Clauses");
+                        nextStepBtn.setText("Extract Clauses 🗨️➡️⚖️");
                         container.getChildren().add(nextStepBtn);
                     }
                     case CLAUSES_EXTRACTED -> {
-                        nextStepBtn.setText("Prepare Solidity");
+                        nextStepBtn.setText("Prepare Solidity ⚖️➡️📄");
                         container.getChildren().add(nextStepBtn);
                     }
                     case SOLIDITY_PREPARED -> {
-                        nextStepBtn.setText("Generate Solidity");
+                        nextStepBtn.setText("Generate Solidity 📄➡️📃");
                         container.getChildren().add(nextStepBtn);
                     }
                     case SOLIDITY_GENERATED,
                          DEPLOYED,
                          CONFIRMED,
                          TERMINATED -> {
-                        nextStepBtn.setText("Ethereum Actions");
+                        nextStepBtn.setText("Ethereum Actions 🕸️");
                         nextStepBtn.getStyleClass().add("btn-action");
                         nextStepBtn.setOnAction(e -> {
                             EthereumActionsController controller = applicationContext.getBean(EthereumActionsController.class);
@@ -209,26 +211,6 @@ public class MainController extends WindowAwareController {
                 setGraphic(container);
             }
         });
-    }
-
-    private void setupTable() {
-        contractsTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
-        contractsTable.widthProperty().addListener((obs, oldWidth, newWidth) -> {
-            // Calculate total width of columns except last
-            double otherColumnsWidth = 0;
-            for (int i = 0; i < contractsTable.getColumns().size() - 1; i++) {
-                otherColumnsWidth += contractsTable.getColumns().get(i).getWidth();
-            }
-            // Set last column width to fill remaining space
-            double lastColWidth = newWidth.doubleValue() - otherColumnsWidth - 2; // -2 for padding/borders
-            if (lastColWidth > 0) {
-                contractsTable.getColumns().getLast().setPrefWidth(lastColWidth);
-            }
-        });
-        idCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().id()));
-        statusCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().status().toString()));
-
-        setupActionColumn();
 
         contractsTable.setRowFactory(tv -> new TableRow<DigitalizedContract>() {
             @Override
@@ -242,7 +224,7 @@ public class MainController extends WindowAwareController {
 
     private void refreshContracts() {
         try {
-            ResponseEntity<DigitalizedContract[]> response = httpClientUtil.get(baseUrl + "/list?userId=" + prefs.get("userId", ""), null, DigitalizedContract[].class);
+            ResponseEntity<DigitalizedContract[]> response = httpClientUtil.get(baseUrl + "/list", null, DigitalizedContract[].class);
 
             if(response.getBody() == null) throw new NoHttpResponseException("Listing user contracts failed with no response");
             else if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> contractsTable.getItems().setAll(response.getBody()));
@@ -273,7 +255,7 @@ public class MainController extends WindowAwareController {
             // Empty body for PATCH can be null or empty map depending on your implementation
             ResponseEntity<String> response = httpClientUtil.patch(url, null, null, String.class);
 
-            if(response.getBody() == null) throw new NoHttpResponseException((contract.status() == UPLOADED ? "Clauses extraction" : "Action related to solidity contract") + " failed with no response");
+            if(response.getBody() == null) throw new NoHttpResponseException((contract.status() == UPLOADED ? "Clauses extraction" : "Action related to solidity code") + " failed with no response");
             else if (response.getStatusCode().is2xxSuccessful()) {
                 refreshContracts();
                 if(response.getStatusCode().isSameCodeAs(HttpStatusCode.valueOf(HttpStatus.PARTIAL_CONTENT.value()))) windowLauncher.launchWarnSpecialWindow(response.getBody());
@@ -316,7 +298,7 @@ public class MainController extends WindowAwareController {
             controller.setText(soliditySource);
 
             windowLauncher.launchWindow(
-                    "Generated Solidity contract",
+                    "Generated solidity code",
                     800,
                     800,
                     "/layout/window_preview.fxml",

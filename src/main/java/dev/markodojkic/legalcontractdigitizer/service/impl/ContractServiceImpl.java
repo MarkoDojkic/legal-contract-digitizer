@@ -5,27 +5,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
-import dev.markodojkic.legalcontractdigitizer.dto.CompilationResultDTO;
-import dev.markodojkic.legalcontractdigitizer.dto.GasEstimateResponseDTO;
-import dev.markodojkic.legalcontractdigitizer.enums_records.ContractDeploymentContext;
-import dev.markodojkic.legalcontractdigitizer.enums_records.ContractStatus;
-import dev.markodojkic.legalcontractdigitizer.enums_records.DigitalizedContract;
-import dev.markodojkic.legalcontractdigitizer.enums_records.EthereumContractContext;
+import dev.markodojkic.legalcontractdigitizer.model.CompilationResult;
+import dev.markodojkic.legalcontractdigitizer.model.GasEstimateResponseDTO;
+import dev.markodojkic.legalcontractdigitizer.model.ContractDeploymentContext;
+import dev.markodojkic.legalcontractdigitizer.model.ContractStatus;
+import dev.markodojkic.legalcontractdigitizer.model.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.exception.*;
-import dev.markodojkic.legalcontractdigitizer.service.AIService;
+import dev.markodojkic.legalcontractdigitizer.service.IAIService;
 import dev.markodojkic.legalcontractdigitizer.service.IEthereumService;
 import dev.markodojkic.legalcontractdigitizer.service.IContractService;
-import dev.markodojkic.legalcontractdigitizer.service.TokenAuthService;
+import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
-import org.web3j.utils.Convert;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,17 +41,9 @@ public class ContractServiceImpl implements IContractService {
 	@Value("${ethereum.solidityCompilerExecutable}")
 	private String solidityCompilerExecutable;
 
-	public static final String BINARY = "binary";
-	public static final String CONTRACT_TEXT = "contractText";
-	public static final String USER_ID = "userId";
-	public static final String DEPLOYED_ADDRESS = "deployedAddress";
-	public static final String SOLIDITY_SOURCE = "soliditySource";
-	public static final String STATUS = "status";
-	public static final String EXTRACTED_CLAUSES = "extractedClauses";
-	public static final String CONTRACTS = "contracts";
+	private static final String BINARY = "binary", CONTRACT_TEXT = "contractText", USER_ID = "userId", DEPLOYED_ADDRESS = "deployedAddress", SOLIDITY_SOURCE = "soliditySource", STATUS = "status", EXTRACTED_CLAUSES = "extractedClauses", CONTRACTS = "contracts";
 	private final ObjectMapper objectMapper;
-	private final TokenAuthService authService;
-	private final AIService aiService;
+	private final IAIService aiService;
 	private final IEthereumService ethereumService;
 	private Firestore firestore;
 
@@ -64,7 +54,7 @@ public class ContractServiceImpl implements IContractService {
 
 	@Override
 	public String saveUploadedContract(String contractText) {
-		String userId = authService.getCurrentUserId();
+		String userId = AuthSession.getCurrentUserId();
 		String contractId = UUID.randomUUID().toString();
 		ContractStatus initialStatus = ContractStatus.UPLOADED;
 
@@ -76,16 +66,16 @@ public class ContractServiceImpl implements IContractService {
 				.status(initialStatus)
 				.build());
 
-		log.info("Contract saved with ID: {} by user: {} with status: {}", contractId, userId, initialStatus);
+		log.debug("Contract saved with ID: {} by user: {} with status: {}", contractId, userId, initialStatus);
 		return contractId;
 	}
 
 	@Override
-	public List<DigitalizedContract> listContractsForUser(String userId) {
+	public List<DigitalizedContract> listContractsForUser() {
 		List<DigitalizedContract> contracts = new ArrayList<>();
 		try {
 			ApiFuture<QuerySnapshot> future = firestore.collection(CONTRACTS)
-					.whereEqualTo(USER_ID, userId)
+					.whereEqualTo(USER_ID, AuthSession.getCurrentUserId())
 					.get();
 
 			List<QueryDocumentSnapshot> documents = future.get().getDocuments();
@@ -96,8 +86,7 @@ public class ContractServiceImpl implements IContractService {
 				String contractText = doc.getString(CONTRACT_TEXT);
 				ContractStatus status = ContractStatus.valueOf(doc.getString(STATUS));
 
-				List<String> extractedClauses = doc.contains(EXTRACTED_CLAUSES)
-						? (List<String>) doc.get(EXTRACTED_CLAUSES) : null;
+				List<String> extractedClauses = doc.contains(EXTRACTED_CLAUSES) ? (List<String>) doc.get(EXTRACTED_CLAUSES) : null;
 
 				String soliditySource = doc.getString(SOLIDITY_SOURCE);
 				String binary = doc.getString(BINARY);
@@ -123,17 +112,14 @@ public class ContractServiceImpl implements IContractService {
 				));
 			}
 		} catch (Exception e) {
-			log.error("Failed to list contracts for userId={}", userId, e);
+			log.error("Failed to list contracts for userId={}", AuthSession.getCurrentUserId(), e);
 			throw new ContractReadException("Failed to list contracts", e);
 		}
 		return contracts;
 	}
 
 	@Override
-	public void updateContractStatus(String deploymentAddress, ContractStatus newStatus)
-			throws ContractNotFoundException, IllegalStateException, IllegalArgumentException {
-
-		// Query contract by deployedAddress
+	public void updateContractStatus(String deploymentAddress, ContractStatus newStatus) throws ContractNotFoundException, UnauthorizedAccessException {
 		QuerySnapshot querySnapshot;
 		try {
 			querySnapshot = firestore.collection(CONTRACTS)
@@ -142,225 +128,36 @@ public class ContractServiceImpl implements IContractService {
 					.get()
 					.get();
 		} catch (Exception e) {
-			throw new IllegalArgumentException("Failed to query Firestore", e.getCause());
-		}
-
-		if (querySnapshot.isEmpty()) {
+			log.error("No contract found with deployed address: {}", deploymentAddress, e);
 			throw new ContractNotFoundException("No contract found with deployed address: " + deploymentAddress);
 		}
 
-		DocumentSnapshot snapshot = querySnapshot.getDocuments().getFirst();
-		DocumentReference docRef = snapshot.getReference();
+		if (querySnapshot.isEmpty()) throw new ContractNotFoundException("No contract found with deployed address: " + deploymentAddress);
 
-		docRef.update(STATUS, newStatus.name());
+		verifyOwnership(querySnapshot.getDocuments().getFirst());
 
-		log.info("Updated contract status to {} for deployment address: {}", newStatus.name(), deploymentAddress);
+		querySnapshot.getDocuments().getFirst().getReference().update(STATUS, newStatus.name());
+
+		log.debug("Updated contract status to {} for deployment address: {}", newStatus.name(), deploymentAddress);
 	}
 
 	@Override
-	public void deleteIfNotDeployed(String contractId) {
+	public void deleteIfNotDeployed(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, ContractAlreadyConfirmedException {
 		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
 
 		if (ContractStatus.valueOf(snapshot.getString(STATUS)).compareTo(ContractStatus.DEPLOYED) < 0) {
 			docRef.delete();
-			log.info("Deleted contract with ID {}", contractId);
+			log.debug("Deleted contract with ID {}", contractId);
 		} else {
 			throw new ContractAlreadyConfirmedException("Cannot delete contract that is already confirmed");
 		}
 	}
 
 	@Override
-	public DigitalizedContract getContract(String contractId) {
-		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
-		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
+	public DigitalizedContract getContract(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException {
+		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, firestore.collection(CONTRACTS).document(contractId));
 
-		return mapSnapshotToContract(snapshot);
-	}
-
-	@Override
-	public List<String> extractClauses(String contractId) {
-		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
-		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
-
-		// Retrieve cached clauses if available
-		List<String> cached = (List<String>) snapshot.get(EXTRACTED_CLAUSES);
-		if (cached != null && !cached.isEmpty()) {
-			log.info("Using cached clauses for contract ID: {}", contractId);
-			return cached;
-		}
-
-		// Extract clauses using AI service
-		String text = snapshot.getString(CONTRACT_TEXT);
-		if (text == null || text.isEmpty()) {
-			log.error("Contract text is empty or null for contract ID: {}", contractId);
-			throw new ContractNotFoundException(contractId);
-		}
-
-		log.info("Extracting clauses for contract ID: {}", contractId);
-		List<String> clauses;
-		try {
-			clauses = aiService.extractClauses(text);
-		} catch (Exception e) {
-			log.error("Failed to extract clauses for contract ID: {}", contractId, e);
-			throw new ClausesExtractionException(e.getLocalizedMessage());
-		}
-
-		if (clauses == null || clauses.isEmpty()) {
-			log.error("No clauses extracted for contract ID: {}", contractId);
-			throw new ClausesExtractionException("No clauses extracted");
-		}
-
-		docRef.update(Map.of(
-				EXTRACTED_CLAUSES, clauses,
-				STATUS, ContractStatus.CLAUSES_EXTRACTED.name()
-		));
-
-		log.info("Successfully extracted {} clauses for contract ID: {}", clauses.size(), contractId);
-		return clauses;
-	}
-
-	@Override
-	public String generateSolidity(String contractId) {
-		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
-		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
-
-		// Retrieve the extracted clauses
-		List<String> clauses = (List<String>) snapshot.get(EXTRACTED_CLAUSES);
-		if (clauses == null || clauses.isEmpty()) {
-			log.error("No extracted clauses found for contract ID: {}", contractId);
-			throw new ContractNotFoundException(contractId);
-		}
-
-		// Check if we already have Solidity source cached
-		String cachedSoliditySource = snapshot.getString(SOLIDITY_SOURCE);
-		if (cachedSoliditySource != null && !cachedSoliditySource.isEmpty()) {
-			log.info("Using cached Solidity contract for contract ID: {}", contractId);
-
-			// Compile cached Solidity source if it exists
-			return compileAndUpdateDocument(docRef, snapshot, cachedSoliditySource);
-		}
-
-		// Generate Solidity contract using AI service
-		log.info("Generating Solidity contract for contract ID: {}", contractId);
-		String soliditySource;
-		try {
-			soliditySource = aiService.generateSolidityContract(clauses);
-		} catch (Exception e) {
-			log.error("Failed to generate Solidity contract for contract ID: {}", contractId, e);
-			throw new SolidityGenerationException(contractId, e);
-		}
-
-		if (soliditySource == null || soliditySource.isEmpty()) {
-			log.error("Solidity generation failed for contract ID: {}", contractId);
-			throw new SolidityGenerationException(contractId, null);
-		}
-
-		// Update document with the generated Solidity source
-		docRef.update(Map.of(
-				SOLIDITY_SOURCE, soliditySource,
-				STATUS, ContractStatus.SOLIDITY_PREPARED.name()
-		));
-		log.info("Successfully updated document with Solidity source for contract ID: {}", contractId);
-
-		// Compile and update document with the binary and ABI
-		return compileAndUpdateDocument(docRef, snapshot, soliditySource);
-	}
-
-	private String compileAndUpdateDocument(DocumentReference docRef, DocumentSnapshot snapshot, String soliditySource) {
-		// Compile the Solidity source code
-		CompilationResultDTO result;
-		try {
-			log.info("Compiling Solidity contract for contract ID: {}", snapshot.getId());
-			result = compile(soliditySource);
-		} catch (CompilationException e) {
-			log.error("Solidity compilation failed for contract ID: {}", snapshot.getId(), e);
-			throw new CompilationException(e.getLocalizedMessage());
-		}
-
-		// Update the document with the binary and ABI after compilation
-		docRef.update(Map.of(
-				BINARY, result.getBin(),
-				"abi", result.getAbi(),
-				STATUS, ContractStatus.SOLIDITY_GENERATED.name()
-		));
-		log.info("Successfully compiled Solidity source and updated contract ID: {}", snapshot.getId());
-
-		return "Successfully compiled Solidity source";
-	}
-
-	@Override
-	public String deployContractWithParams(String contractId, List<Object> constructorParams, Credentials credentials)
-			throws ContractNotFoundException, UnauthorizedAccessException,
-			IllegalStateException, InvalidContractBinaryException, DeploymentFailedException {
-
-		ContractDeploymentContext context = prepareDeploymentContext(contractId, constructorParams);
-
-		String contractAddress = ethereumService.deployCompiledContract(
-				context.ethContext().contractBinary(),
-				context.ethContext().encodedConstructor(),
-				credentials
-		);
-
-		context.contractRef().update(
-				Map.of(
-						STATUS, ContractStatus.DEPLOYED.name(),
-						DEPLOYED_ADDRESS, contractAddress
-				)
-		);
-
-		log.info("User {} deployed contract {} at address {}", context.userId(), contractId, contractAddress);
-		return contractAddress;
-	}
-
-	@Override
-	public GasEstimateResponseDTO estimateGasForDeployment(String contractId, List<Object> constructorParams, String deployerWalletAddress)
-			throws ContractNotFoundException, UnauthorizedAccessException,
-			IllegalStateException, InvalidContractBinaryException, GasEstimationFailedException {
-
-		ContractDeploymentContext context = prepareDeploymentContext(contractId, constructorParams);
-		List<BigInteger> gas = ethereumService.estimateGasForDeployment(
-				context.ethContext().contractBinary(),
-				context.ethContext().encodedConstructor(),
-				deployerWalletAddress
-		);
-
-		String formatted = String.format("Estimated gas: %,d units (≈ %.6f Sepolia ETH)", gas.get(0), Convert.fromWei(new BigDecimal(gas.get(0).multiply(gas.get(1))), Convert.Unit.ETHER));
-		log.info(formatted);
-		return GasEstimateResponseDTO.builder()
-				.gasLimit(gas.get(0))
-				.gasPrice(gas.get(1))
-				.totalCost(gas.get(0).multiply(gas.get(1)))
-				.build();
-	}
-
-	// === Helper methods ===
-
-	private DocumentSnapshot getDocumentOrThrow(String contractId, DocumentReference docRef) {
-		try {
-			DocumentSnapshot snapshot = docRef.get().get();
-			if (!snapshot.exists()) {
-				log.warn("Contract not found with ID {}", contractId);
-				throw new ContractNotFoundException("Contract not found: " + contractId);
-			}
-			verifyOwnership(snapshot);
-			return snapshot;
-		} catch (InterruptedException | ExecutionException e) {
-			log.error("Error retrieving contract {}", contractId, e);
-			throw new ContractReadException("Error retrieving contract: " + contractId, e);
-		}
-	}
-
-	private void verifyOwnership(DocumentSnapshot snapshot) {
-		String contractUserId = snapshot.getString(USER_ID);
-		String currentUserId = authService.getCurrentUserId();
-
-		if (contractUserId == null || !contractUserId.equals(currentUserId)) {
-			throw new UnauthorizedAccessException("You are not authorized to access this contract.");
-		}
-	}
-
-	private DigitalizedContract mapSnapshotToContract(DocumentSnapshot snapshot) {
 		return new DigitalizedContract(
 				snapshot.getId(),
 				snapshot.getString(USER_ID),
@@ -374,26 +171,163 @@ public class ContractServiceImpl implements IContractService {
 		);
 	}
 
-	private ContractDeploymentContext prepareDeploymentContext(String contractId, List<Object> constructorParams) throws InvalidContractBinaryException {
-		String userId = authService.getCurrentUserId();
-		if (userId == null) {
-			throw new IllegalStateException("User not authenticated");
+	@Override
+	public List<String> extractClauses(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, ClausesExtractionException {
+		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
+		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, firestore.collection(CONTRACTS).document(contractId));
+
+		List<String> cached = (List<String>) snapshot.get(EXTRACTED_CLAUSES);
+		if (cached != null && !cached.isEmpty()) {
+			log.debug("Using cached clauses for contract ID: {}", contractId);
+			return cached;
 		}
 
-		DocumentReference contractRef = firestore.collection(CONTRACTS).document(contractId);
-		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, contractRef);
-
-		String contractBinary = snapshot.getString(BINARY);
-		if (contractBinary == null || contractBinary.isEmpty()) {
-			throw new IllegalStateException("Contract binary not found or empty in Firestore");
+		String contractText = snapshot.getString(CONTRACT_TEXT);
+		if (contractText == null || contractText.isEmpty()) {
+			log.debug("Contract text is empty or null for contract ID: {}", contractId);
+			throw new ClausesExtractionException("Contract text is empty or null");
 		}
 
-		EthereumContractContext ethContext = ethereumService.buildDeploymentContext(contractBinary, constructorParams);
+		log.debug("Extracting clauses for contract ID: {}", contractId);
+		List<String> contractClauses;
+		try {
+			contractClauses = aiService.extractClauses(contractText);
+		} catch (Exception e) {
+			log.error("Failed to extract clauses for contract ID: {}", contractId, e);
+			throw new ClausesExtractionException("AI service failed to extract clauses from text:\n" + e.getLocalizedMessage());
+		}
 
-		return new ContractDeploymentContext(userId, ethContext, contractRef);
+		if (contractClauses == null || contractClauses.isEmpty()) {
+			log.debug("No clauses extracted for contract ID: {}", contractId);
+			throw new ClausesExtractionException("No clauses extracted");
+		}
+
+		docRef.update(Map.of(EXTRACTED_CLAUSES, contractClauses, STATUS, ContractStatus.CLAUSES_EXTRACTED.name()));
+
+		log.debug("Successfully extracted {} clauses for contract ID: {}", contractClauses.size(), contractId);
+		return contractClauses;
 	}
 
-	private CompilationResultDTO compile(String soliditySource) throws CompilationException {
+	@Override
+	@SuppressWarnings("unchecked")
+	public String generateSolidity(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ClausesExtractionException, CompilationException, SolidityGenerationException {
+		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
+		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
+
+		List<String> clauses = (List<String>) snapshot.get(EXTRACTED_CLAUSES);
+		if (clauses == null || clauses.isEmpty()) {
+			log.debug("No clauses extracted for contract ID: {}", contractId);
+			throw new ClausesExtractionException("No clauses extracted");
+		}
+
+		String cachedSoliditySource = snapshot.getString(SOLIDITY_SOURCE);
+		if (cachedSoliditySource != null && !cachedSoliditySource.isEmpty()) {
+			log.debug("Using cached solidity code for contract ID: {}", contractId);
+			return compileAndUpdateDocument(docRef, snapshot, cachedSoliditySource);
+		}
+
+		log.debug("Generating solidity code for contract ID: {}", contractId);
+		String soliditySource;
+		try {
+			soliditySource = aiService.generateSolidityContract(clauses);
+		} catch (Exception e) {
+			log.error("Failed to generate solidity code for contract ID: {}", contractId, e);
+			throw new SolidityGenerationException(e.getLocalizedMessage());
+		}
+
+		if (soliditySource == null || soliditySource.isEmpty()) {
+			log.error("Generated solidity code is empty: {}", contractId);
+			throw new SolidityGenerationException("Generated solidity code is empty");
+		}
+
+		// Update document with the generated Solidity source
+		docRef.update(Map.of(
+				SOLIDITY_SOURCE, soliditySource,
+				STATUS, ContractStatus.SOLIDITY_PREPARED.name()
+		));
+		log.debug("Successfully updated document with Solidity source for contract ID: {}", contractId);
+
+		// Compile and update document with the binary and ABI
+		return compileAndUpdateDocument(docRef, snapshot, soliditySource);
+	}
+
+	@Override
+	public String deployContractWithParams(String contractId, List<Object> constructorParams, Credentials credentials) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, InvalidContractBinaryException, DeploymentFailedException {
+		ContractDeploymentContext context = prepareDeploymentContext(contractId, constructorParams);
+
+		String contractAddress = ethereumService.deployCompiledContract(
+				context.ethContext().contractBinary(),
+				context.ethContext().encodedConstructor(),
+				credentials
+		);
+
+		context.contractRef().update(Map.of(STATUS, ContractStatus.DEPLOYED.name(), DEPLOYED_ADDRESS, contractAddress));
+
+		log.debug("User {} deployed contract {} at address {}", AuthSession.getCurrentUserId(), contractId, contractAddress);
+		return contractAddress;
+	}
+
+	@Override
+	public GasEstimateResponseDTO estimateGasForDeployment(String contractId, List<Object> constructorParams, String deployerWalletAddress) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, InvalidContractBinaryException, GasEstimationFailedException {
+		ContractDeploymentContext context = prepareDeploymentContext(contractId, constructorParams);
+		Pair<BigInteger, BigInteger> estimateGasForDeployment = ethereumService.estimateGasForDeployment(context.ethContext().contractBinary(), context.ethContext().encodedConstructor(), deployerWalletAddress);
+
+		return new GasEstimateResponseDTO("", estimateGasForDeployment.getLeft(), estimateGasForDeployment.getRight());
+	}
+
+	private String compileAndUpdateDocument(DocumentReference docRef, DocumentSnapshot snapshot, String soliditySource) throws CompilationException {
+		CompilationResult result;
+		try {
+			log.debug("Compiling solidity code for contract ID: {}", snapshot.getId());
+			result = compile(soliditySource);
+		} catch (CompilationException e) {
+			log.error("Solidity compilation failed for contract ID: {}", snapshot.getId(), e);
+			throw new CompilationException(e.getLocalizedMessage());
+		}
+
+		docRef.update(Map.of(
+				BINARY, result.bin(),
+				"abi", result.abi(),
+				STATUS, ContractStatus.SOLIDITY_GENERATED.name()
+		));
+		log.debug("Successfully compiled Solidity source and updated contract ID: {}", snapshot.getId());
+
+		return "Successfully compiled Solidity source";
+	}
+
+
+	private DocumentSnapshot getDocumentOrThrow(String contractId, DocumentReference docRef) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException {
+		try {
+			DocumentSnapshot snapshot = docRef.get().get();
+			if (!snapshot.exists()) {
+				log.debug("Contract not found with ID {}", contractId);
+				throw new ContractNotFoundException("Contract not found: " + contractId);
+			}
+			verifyOwnership(snapshot);
+			return snapshot;
+		} catch (InterruptedException | ExecutionException e) {
+			log.error("Error retrieving contract {}", contractId, e);
+			throw new ContractReadException("Error retrieving contract: " + contractId, e);
+		}
+	}
+
+	private void verifyOwnership(DocumentSnapshot snapshot) throws UnauthorizedAccessException {
+		String contractUserId = snapshot.getString(USER_ID);
+		String currentUserId = AuthSession.getCurrentUserId();
+
+		if (contractUserId == null || !contractUserId.equals(currentUserId)) throw new UnauthorizedAccessException("You are not authorized to access this contract.");
+	}
+
+	private ContractDeploymentContext prepareDeploymentContext(String contractId, List<Object> constructorParams) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, InvalidContractBinaryException {
+		DocumentReference contractRef = firestore.collection(CONTRACTS).document(contractId);
+
+		String contractBinary = getDocumentOrThrow(contractId, contractRef).getString(BINARY);
+		if (contractBinary == null || contractBinary.isEmpty()) throw new InvalidContractBinaryException("Contract binary not found or empty in Firestore");
+
+		return new ContractDeploymentContext(ethereumService.buildDeploymentContext(contractBinary, constructorParams), contractRef);
+	}
+
+	private CompilationResult compile(String soliditySource) throws CompilationException {
 		Path sourceFile = null;
 		try {
 			sourceFile = Files.createTempFile("contract", ".sol");
@@ -405,22 +339,17 @@ public class ContractServiceImpl implements IContractService {
 			if (process.waitFor() != 0) throw new CompilationException(new String(process.getErrorStream().readAllBytes()));
 
 			JsonNode contractsNode = objectMapper.readTree(new String(process.getInputStream().readAllBytes())).path(CONTRACTS);
-			if (contractsNode.isEmpty()) {
-				throw new CompilationException("No smart contracts found in compilation output");
-			}
+			if (contractsNode.isEmpty()) throw new CompilationException("No smart contracts found in compilation output");
 
 			JsonNode contractNode = contractsNode.get(contractsNode.fieldNames().next());
 
-			return CompilationResultDTO.builder().abi(contractNode.get("abi").toString()).bin(contractNode.get("bin").asText()).build();
+			return new CompilationResult(contractNode.get("bin").asText(), contractNode.get("abi").toString());
 
 		} catch (Exception e){
+			if(e instanceof InterruptedException) Thread.currentThread().interrupt();
 			throw new CompilationException(e.getLocalizedMessage());
 		} finally {
-			if(sourceFile != null) {
-				try {
-					Files.deleteIfExists(sourceFile);
-				} catch (IOException _) {}
-			}
+			if(sourceFile != null) try { Files.deleteIfExists(sourceFile); } catch (IOException _) {}
 		}
 	}
 }

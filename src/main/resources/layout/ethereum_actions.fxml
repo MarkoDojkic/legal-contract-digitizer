@@ -9,24 +9,19 @@
     <Label text="Ethereum Actions" styleClass="eth-title"/>
     <Label fx:id="contractIdLabel"/>
 
-    <Button text="Estimate Gas" fx:id="estimateGasBtn"/>
+    <Button fx:id="estimateGasBtn" text="Estimate Gas 💹"/>
     <Label fx:id="gasResultLabel"/>
 
     <VBox fx:id="actionButtonPane" alignment="CENTER" spacing="8">
-        <Button fx:id="deployContractBtn" text="Deploy contract" />
-        <Button fx:id="checkConfirmedBtn" text="Check Confirmation" />
-        <Button fx:id="viewOnBlockchainBtn" text="View on Blockchain" />
+        <Button fx:id="deployContractBtn" text="Deploy contract 📃➡️🕸️" />
+        <Button fx:id="checkConfirmedBtn" text="Check Confirmation ✅" />
+        <Button fx:id="viewOnBlockchainBtn" text="View on Blockchain 👁" />
     </VBox>
     <Separator/>
-    <FlowPane fx:id="additionalActionButtonPane"
-              hgap="8"
-              vgap="8"
-              alignment="CENTER"/>
-    <Label fx:id="balanceLabel" text="Balance: …"/>
+    <FlowPane fx:id="additionalActionButtonPane" hgap="8" vgap="8" alignment="CENTER"/>
+    <Label fx:id="balanceLabel" text="Balance 🪙: …"/>
 
-    <Button text="Get Transaction Receipt" fx:id="getReceiptBtn"/>
-    <!-- TextField to input transaction hash -->
-    <TextField fx:id="transactionHashField" promptText="Enter transaction hash" />
-    <TextArea fx:id="receiptTextArea" prefRowCount="6" editable="false"/>
-
+    <Button fx:id="getReceiptBtn" text="Get Transaction Receipt 🧾"/>
+    <TextField fx:id="transactionHashField" promptText="Enter transaction hash #️⃣" />
+    <TextArea fx:id="receiptTextArea" editable="false"/>
 </VBox>

@@ -1,4 +1,4 @@
-package dev.markodojkic.legalcontractdigitizer.enums_records;
+package dev.markodojkic.legalcontractdigitizer.model;
 
 import dev.markodojkic.legalcontractdigitizer.javafx.controller.JavaFXWindowController;
 import javafx.scene.Parent;

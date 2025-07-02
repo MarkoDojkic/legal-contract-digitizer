@@ -1,9 +1,12 @@
 package dev.markodojkic.legalcontractdigitizer.service.impl;
 
-import dev.markodojkic.legalcontractdigitizer.dto.WalletInfo;
+import dev.markodojkic.legalcontractdigitizer.exception.EthereumConnectionException;
+import dev.markodojkic.legalcontractdigitizer.model.WalletInfo;
 import dev.markodojkic.legalcontractdigitizer.exception.WalletCreationException;
 import dev.markodojkic.legalcontractdigitizer.exception.WalletNotFoundException;
+import dev.markodojkic.legalcontractdigitizer.service.IEthereumService;
 import dev.markodojkic.legalcontractdigitizer.service.IEthereumWalletService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -12,17 +15,17 @@ import org.web3j.crypto.WalletUtils;
 
 import java.io.File;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class EthereumWalletServiceImpl implements IEthereumWalletService {
 
 	private static final String KEYSTORE_DIR = "ethWallets";
@@ -32,134 +35,115 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 	@Value("${ethereum.walletKeystore.password}")
 	private String walletKeystorePassword;
 
-	// In-memory cache for wallets list
-	private Cache<String, List<WalletInfo>> walletsCache = Caffeine.newBuilder()
-			.expireAfterWrite(60, TimeUnit.MINUTES)  // Cache expires after 60 minutes
-			.maximumSize(1)  // Only store one wallet list in cache
-			.build();
+	private final Cache<String, List<WalletInfo>> walletsCache = Caffeine.newBuilder().maximumSize(1).build(); // In-memory cache for wallets list
+	private final IEthereumService ethereumService;
 
-	private long lastModifiedTime = 0;  // Track last modified time of the directory
+	private String lastDirHash;
 
 	@Override
 	public WalletInfo createWallet(String label) {
 		try {
 			File dir = new File(KEYSTORE_DIR);
-			dir.mkdirs();
+			if(!dir.exists()) dir.mkdirs();
 
-			// Generate the wallet file (but don't worry about the file name yet)
-			String fileName = WalletUtils.generateNewWalletFile(walletKeystorePassword, dir, false);
-			File walletFile = new File(dir, fileName);
-
-			// Load the credentials from the generated file
+			// Generate wallet file and load credentials
+			File walletFile = new File(dir, WalletUtils.generateNewWalletFile(walletKeystorePassword, dir, false));
 			Credentials credentials = WalletUtils.loadCredentials(walletKeystorePassword, walletFile);
 
-			// Build the new file name in "label-address" format
-			String newFileName = label + "-" + credentials.getAddress() + ".json";
+			// Rename file to the format "label-address.json"
+			File renamedFile = new File(dir, label + "-" + credentials.getAddress() + ".json");
+			if (!walletFile.renameTo(renamedFile)) throw new WalletCreationException("Failed to rename wallet file to the correct format.");
 
-			// Rename the file to the desired format
-			File renamedFile = new File(dir, newFileName);
-			if (!walletFile.renameTo(renamedFile)) {
-				throw new WalletCreationException("Failed to rename wallet file to the correct format.", null);
-			}
-
-			// Create WalletInfo object with the new filename and address
-			WalletInfo wallet = new WalletInfo(label, "0x" + credentials.getAddress(), BigDecimal.ZERO, newFileName);
-
-			// Update cache
-			loadWalletsFromDirectory();
+			WalletInfo wallet = new WalletInfo(label, "0x" + credentials.getAddress(), ethereumService.getBalance(credentials.getAddress()), renamedFile.getName());
+			updateCache(wallet);
 
 			return wallet;
 		} catch (Exception e) {
-			throw new WalletCreationException("Failed to create wallet", e);
+			throw new WalletCreationException("Failed to create wallet:\n" + e.getLocalizedMessage());
 		}
 	}
 
 	@Override
 	public List<WalletInfo> listWallets() {
-		// Check cache first and only load from disk if needed
-		if (walletsCache.getIfPresent("wallets") != null && !isDirectoryModified()) {
-			return walletsCache.getIfPresent("wallets");
-		}
-
-		// If no cache or directory has changed, reload wallets from disk
-		loadWalletsFromDirectory();
+		// If directory content has changed, reload wallets; otherwise, use cache
+		if (isDirectoryModified()) loadWalletsFromDirectory();
 		return walletsCache.getIfPresent("wallets");
+	}
+
+	@Override
+	public Credentials loadCredentials(String address) throws WalletNotFoundException {
+		List<WalletInfo> wallets = walletsCache.getIfPresent("wallets");
+		if (wallets == null) throw new WalletNotFoundException("Requested credentials not found");
+		return wallets.stream()
+				.filter(wallet -> wallet.address().equalsIgnoreCase(address))
+				.findFirst()
+				.map(wallet -> {
+					try {
+						return WalletUtils.loadCredentials(walletKeystorePassword, new File(KEYSTORE_DIR, wallet.keystoreFile()));
+					} catch (Exception e) {
+						throw new WalletNotFoundException("Requested credentials failed to load");
+					}
+				})
+				.orElseThrow(() -> new WalletNotFoundException(address));
 	}
 
 	private boolean isDirectoryModified() {
 		File dir = new File(KEYSTORE_DIR);
-		if (!dir.exists() || !dir.isDirectory()) {
-			return false;  // Directory doesn't exist or isn't valid
-		}
+		if (!dir.exists() || !dir.isDirectory()) return false;
 
-		// Check if the last modified time of any file has changed
-		long latestModifiedTime = 0;
-		File[] files = dir.listFiles();
-		if (files != null) {
-			for (File file : files) {
-				if (file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches()) {
-					long fileModifiedTime = file.lastModified();
-					if (fileModifiedTime > latestModifiedTime) {
-						latestModifiedTime = fileModifiedTime;
-					}
-				}
-			}
-		}
+		// Generate a hash of the directory's contents (file names)
+		String currentDirHash = generateDirectoryHash(dir);
 
-		// Compare with the last cached modification time
-		if (latestModifiedTime > lastModifiedTime) {
-			lastModifiedTime = latestModifiedTime;
-			return true;  // Directory has been modified
+		// Compare the current directory hash with the stored one
+		if (!currentDirHash.equals(lastDirHash)) {
+			lastDirHash = currentDirHash;
+			return true;  // Directory has changed
 		}
-		return false;  // No modification
+		return false;  // No change detected
+	}
+
+	private String generateDirectoryHash(File dir) {
+		// List and hash all wallet filenames in the directory
+		List<String> currentFilenames = Arrays.stream(Objects.requireNonNull(dir.listFiles()))
+				.filter(file -> file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches())
+				.map(File::getName)
+				.sorted()
+				.collect(Collectors.toList());
+
+		return String.join(",", currentFilenames);
 	}
 
 	private void loadWalletsFromDirectory() {
 		File dir = new File(KEYSTORE_DIR);
-		if (!dir.exists() || !dir.isDirectory()) {
-			return;  // Return if the directory doesn't exist or isn't a directory
-		}
+		if (!dir.exists() || !dir.isDirectory()) return;
 
-		File[] files = dir.listFiles();
-		if (files == null) {
-			return; // Return if no files exist in the directory
-		}
-
-		List<WalletInfo> loadedWallets = new ArrayList<>();
-		for (File file : files) {
-			if (file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches()) {
-				// Extract label and address from filename
-				Matcher matcher = WALLET_FILENAME_PATTERN.matcher(file.getName());
-				if (matcher.matches()) {
-					String label = matcher.group(1);  // Label is the first part of the filename
-					String address = "0x" + matcher.group(2);  // Address is the second part
-
-					try {
-						loadedWallets.add(new WalletInfo(label, address, BigDecimal.ZERO, file.getName()));
-					} catch (Exception e) {
-						log.error("Failed to load wallet from file: {}", file.getName());
-						loadedWallets.add(new WalletInfo("Failed to load wallet from file: " + file.getName(), null, null, file.getName()));
+		List<WalletInfo> loadedWallets = Arrays.stream(Objects.requireNonNull(dir.listFiles()))
+				.filter(file -> file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches())
+				.map(file -> {
+					Matcher matcher = WALLET_FILENAME_PATTERN.matcher(file.getName());
+					if (matcher.matches()) {
+						String label = matcher.group(1);
+						String address = "0x" + matcher.group(2);
+						BigDecimal balance = BigDecimal.valueOf(-1);
+						try {
+							balance = ethereumService.getBalance(address);
+						} catch (EthereumConnectionException e) {
+							log.error("Cannot get balance for wallet, will fallback to -1.0 Sepolia ETH", e);
+						}
+						return new WalletInfo(label, address, balance, file.getName());
 					}
-				}
-			}
-		}
+					return null;
+				})
+				.filter(Objects::nonNull)
+				.collect(Collectors.toList());
 
-		// Cache the loaded wallets
 		walletsCache.put("wallets", loadedWallets);
 	}
 
-	@Override
-	public Credentials loadCredentials(String address) {
-		return walletsCache.getIfPresent("wallets").stream()
-				.filter(w -> w.getAddress().equalsIgnoreCase(address))
-				.findFirst()
-				.map(w -> {
-					try {
-						return WalletUtils.loadCredentials(walletKeystorePassword, new File(KEYSTORE_DIR, w.getKeystoreFile()));
-					} catch (Exception e) {
-						throw new WalletCreationException("Failed to load credentials", e);
-					}
-				})
-				.orElseThrow(() -> new WalletNotFoundException(address));
+	private void updateCache(WalletInfo wallet) {
+		List<WalletInfo> wallets = walletsCache.getIfPresent("wallets");
+		if (wallets == null) wallets = new ArrayList<>();
+		wallets.add(wallet);
+		walletsCache.put("wallets", wallets);
 	}
 }

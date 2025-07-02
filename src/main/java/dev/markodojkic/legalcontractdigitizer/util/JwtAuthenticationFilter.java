@@ -7,6 +7,7 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.oauth2.Oauth2;
 import com.google.api.services.oauth2.model.Tokeninfo;
+import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
 import dev.markodojkic.legalcontractdigitizer.exception.UnauthorizedAccessException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,6 +23,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.prefs.Preferences;
 
 @RequiredArgsConstructor
 @Component
@@ -67,6 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                         if (newAccessToken != null) {
                             AuthSession.setAccessToken(newAccessToken);
+                            Preferences.userNodeForPackage(LegalContractDigitizerApplication.class).put("accessToken", newAccessToken);
                             tokeninfo = extractTokenInfo(newAccessToken);
                             if(tokeninfo == null || tokeninfo.getExpiresIn() == 0) throw new UnauthorizedAccessException("Refresh access token is expired");
                         } else throw new UnauthorizedAccessException("Access token and refresh access token are invalid");

@@ -1,3 +1,12 @@
 package dev.markodojkic.legalcontractdigitizer.model;
 
-public record EthereumContractContext(String contractBinary, String encodedConstructor) {}
+/**
+ * Holds Ethereum contract binary and encoded constructor data.
+ *
+ * @param contractBinary     Compiled contract bytecode.
+ * @param encodedConstructor ABI-encoded constructor parameters.
+ */
+public record EthereumContractContext(
+        String contractBinary,
+        String encodedConstructor
+) {}

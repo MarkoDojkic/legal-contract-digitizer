@@ -4,4 +4,15 @@ import dev.markodojkic.legalcontractdigitizer.javafx.controller.JavaFXWindowCont
 import javafx.scene.Parent;
 import javafx.scene.web.WebEngine;
 
-public record WebViewWindow(Parent parent, JavaFXWindowController controller, WebEngine engine) {}
+/**
+ * Holds components related to a JavaFX WebView window.
+ *
+ * @param parent     The parent UI node.
+ * @param controller The JavaFX window controller.
+ * @param engine     The WebEngine instance.
+ */
+public record WebViewWindow(
+        Parent parent,
+        JavaFXWindowController controller,
+        WebEngine engine
+) {}

@@ -17,6 +17,25 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Security configuration class that sets up HTTP security, including CORS configuration,
+ * JWT authentication filter, and endpoint access rules.
+ *
+ * <p>Key features:
+ * <ul>
+ *   <li>Defines allowed CORS origins, methods, and headers, enabling credentials support.</li>
+ *   <li>Registers a JWT authentication filter to validate tokens before username/password authentication.</li>
+ *   <li>Configures endpoint access rules:
+ *     <ul>
+ *       <li>Allows unauthenticated access to Swagger UI and related API documentation resources.</li>
+ *       <li>Requires authentication for API endpoints under "/api/**".</li>
+ *       <li>Denies access to all other requests.</li>
+ *     </ul>
+ *   </li>
+ *   <li>Disables HTTP basic authentication, form login, and CSRF protection.</li>
+ *   <li>Sets session management to migrate session on fixation and create sessions if required.</li>
+ * </ul>
+ */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -25,6 +44,12 @@ public class SecurityConfig {
     @Value("${server.port}")
     private Integer serverPort;
 
+    /**
+     * Configures CORS settings allowing requests from localhost on the configured server port,
+     * with specified HTTP methods and headers, and allowing credentials.
+     *
+     * @return the CORS configuration source bean
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
@@ -40,6 +65,15 @@ public class SecurityConfig {
         return source;
     }
 
+    /**
+     * Configures the Spring Security filter chain, including disabling default HTTP basic
+     * and form login, adding the JWT authentication filter, setting authorization rules,
+     * session management policies, CSRF, and CORS.
+     *
+     * @param http the HttpSecurity builder
+     * @return configured SecurityFilterChain instance
+     * @throws Exception in case of configuration errors
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
@@ -55,7 +89,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll()
                 )
-
                 .sessionManagement(session -> session
                         .sessionFixation().migrateSession()
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -65,6 +98,12 @@ public class SecurityConfig {
                 .build();
     }
 
+    /**
+     * Instantiates the JWT authentication filter bean that intercepts requests
+     * to validate JWT tokens.
+     *
+     * @return new JwtAuthenticationFilter instance
+     */
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter();

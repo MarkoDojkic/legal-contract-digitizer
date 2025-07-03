@@ -81,8 +81,8 @@ public class EthereumServiceImpl implements IEthereumService {
 
     @Override
     public String deployCompiledContract(String binary, String encodedConstructor, Credentials credentials) throws DeploymentFailedException {
-        if (binary == null || binary.isBlank()) throw new DeploymentFailedException("Contract binary must not be null or empty", null);
-        if (encodedConstructor == null) throw new DeploymentFailedException("Encoded constructor must not be null or empty", null);
+        if (binary == null || binary.isBlank()) throw new DeploymentFailedException("Contract binary must not be null or empty");
+        if (encodedConstructor == null) throw new DeploymentFailedException("Encoded constructor must not be null or empty");
 
         try {
             Pair<BigInteger, BigInteger> estimateGasForDeployment = estimateGasForDeployment(binary, encodedConstructor, credentials.getAddress());
@@ -103,7 +103,7 @@ public class EthereumServiceImpl implements IEthereumService {
             return contractAddress;
         } catch (Exception e) {
             log.error("Contract deployment failed", e);
-            throw new DeploymentFailedException("Contract deployment failed: " + e.getLocalizedMessage(), e);
+            throw new DeploymentFailedException("Contract deployment failed: " + e.getLocalizedMessage());
         }
     }
 
@@ -204,7 +204,7 @@ public class EthereumServiceImpl implements IEthereumService {
             throw e;
         } catch (Exception e) {
 	        log.error("Error invoking {} on {}", functionName, contractAddress, e);
-            throw new InvalidFunctionCallException(e.getLocalizedMessage(), e);
+            throw new InvalidFunctionCallException(e.getLocalizedMessage());
         }
     }
 
@@ -239,12 +239,12 @@ public class EthereumServiceImpl implements IEthereumService {
                 if (receiptOptional.isPresent()) return receiptOptional.get();
                 Thread.sleep(sleepDuration);
             }
-            throw new DeploymentFailedException("Transaction receipt not found for txHash: " + txHash, null);
+            throw new DeploymentFailedException("Transaction receipt not found for txHash: " + txHash);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new DeploymentFailedException("Thread interrupted while waiting for transaction receipt", e);
+            throw new DeploymentFailedException("Thread interrupted while waiting for transaction receipt");
         } catch (Exception e) {
-            throw new DeploymentFailedException("Failed to get transaction receipt: " + e.getLocalizedMessage(), e);
+            throw new DeploymentFailedException("Failed to get transaction receipt: " + e.getLocalizedMessage());
         }
     }
 

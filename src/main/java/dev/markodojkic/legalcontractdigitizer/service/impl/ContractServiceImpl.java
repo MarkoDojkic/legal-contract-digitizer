@@ -113,7 +113,7 @@ public class ContractServiceImpl implements IContractService {
 			}
 		} catch (Exception e) {
 			log.error("Failed to list contracts for userId={}", AuthSession.getCurrentUserId(), e);
-			throw new ContractReadException("Failed to list contracts", e);
+			throw new ContractReadException("Failed to list contracts");
 		}
 		return contracts;
 	}
@@ -307,7 +307,7 @@ public class ContractServiceImpl implements IContractService {
 			return snapshot;
 		} catch (InterruptedException | ExecutionException e) {
 			log.error("Error retrieving contract {}", contractId, e);
-			throw new ContractReadException("Error retrieving contract: " + contractId, e);
+			throw new ContractReadException("Error retrieving contract: " + contractId);
 		}
 	}
 

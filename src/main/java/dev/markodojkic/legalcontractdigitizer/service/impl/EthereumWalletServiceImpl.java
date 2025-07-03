@@ -84,7 +84,7 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 						throw new WalletNotFoundException("Requested credentials failed to load");
 					}
 				})
-				.orElseThrow(() -> new WalletNotFoundException(address));
+				.orElseThrow(() -> new WalletNotFoundException("Wallet not found for address: " + address));
 	}
 
 	private boolean isDirectoryModified() {

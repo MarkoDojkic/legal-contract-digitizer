@@ -281,7 +281,7 @@ public class EthereumActionsController extends WindowAwareController {
 			else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
 		} catch (Exception e) {
 			log.error(e.getLocalizedMessage());
-			throw new InvalidFunctionCallException("Error occurred while invoking action upon smart contract:\n" + e.getLocalizedMessage(), e);
+			throw new InvalidFunctionCallException("Error occurred while invoking action upon smart contract:\n" + e.getLocalizedMessage());
 		}
 	}
 
@@ -414,5 +414,4 @@ public class EthereumActionsController extends WindowAwareController {
 		});
 		return fnButton;
 	}
-
 }

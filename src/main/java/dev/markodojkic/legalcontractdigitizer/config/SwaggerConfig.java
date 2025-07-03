@@ -8,9 +8,21 @@ import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Configuration class for Swagger/OpenAPI documentation generation.
+ * <p>
+ * Defines the OpenAPI specification details such as title, description, version,
+ * license, and external documentation link. Also configures API grouping for
+ * endpoints under "/api/**".
+ */
 @Configuration
 public class SwaggerConfig {
 
+	/**
+	 * Creates a custom OpenAPI specification bean with basic API info and external documentation.
+	 *
+	 * @return the OpenAPI instance with metadata about the Legal contract digitizer™ API
+	 */
 	@Bean
 	public OpenAPI customOpenAPI() {
 		return new OpenAPI()
@@ -25,6 +37,11 @@ public class SwaggerConfig {
 						.url("https://github.com/MarkoDojkic/legal-contract-digitizer"));
 	}
 
+	/**
+	 * Defines a GroupedOpenApi bean that groups all API endpoints under "/api/**" path.
+	 *
+	 * @return the GroupedOpenApi instance to group API endpoints
+	 */
 	@Bean
 	public GroupedOpenApi apiGroup() {
 		return GroupedOpenApi.builder()

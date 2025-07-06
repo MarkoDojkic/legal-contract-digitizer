@@ -123,7 +123,7 @@ public class EthereumServiceImpl implements IEthereumService {
                     BigInteger.ZERO, // No ethereum needed for deployment
                     "0x" + binary + encodedConstructor);
 
-            log.debug("Estimated gas with nonce \"{}\": {} units (≈ {} Sepolia ETH @ {} Gwei)",
+            log.debug("Estimated gas with nonce \"{}\": {} units (≈ {} ETH @ {} Gwei)",
                     nonce,
                     String.format("%,d", gasEstimation.getRight()),
                     Convert.fromWei(new BigDecimal(gasEstimation.getRight().multiply(gasEstimation.getLeft())), Convert.Unit.ETHER).setScale(6, RoundingMode.HALF_UP).toPlainString(),

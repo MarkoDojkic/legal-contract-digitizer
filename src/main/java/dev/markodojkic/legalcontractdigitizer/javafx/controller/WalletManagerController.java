@@ -11,6 +11,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.layout.StackPane;
 import javafx.util.Callback;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.HttpResponseException;
@@ -30,7 +31,7 @@ import java.util.Optional;
 @Slf4j
 public class WalletManagerController extends WindowAwareController {
 	@FXML private TextField walletLabelField;
-	@FXML private Button registerButton;
+	@FXML private Button registerWalletBtn, registerWalletHelpBtn;
 	@FXML private TableView<WalletInfo> walletTable;
 	@FXML private TableColumn<WalletInfo, String> labelColumn, addressColumn;
 	@FXML private TableColumn<WalletInfo, BigDecimal> balanceColumn;
@@ -52,16 +53,27 @@ public class WalletManagerController extends WindowAwareController {
 		labelColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().label()));
 		addressColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().address()));
 		balanceColumn.setCellValueFactory(cellData -> new SimpleObjectProperty<>(cellData.getValue().balance()));
-		registerButton.setOnAction(_ -> registerWallet());
+		registerWalletBtn.setOnAction(_ -> registerWallet());
+		registerWalletHelpBtn.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("Will initiate creation of new Ethereum wallet on previously configured blockchain (or Sepolia testnet by default).\n Upon completion private key will be stored locally, label is used for local identification only. \n This action is irreversible!"));
 
 		labelColumn.setCellFactory(createCenteredCellFactoryAndFormat(null));
 		addressColumn.setCellFactory(createCenteredCellFactoryAndFormat(null));
-		balanceColumn.setCellFactory(createCenteredCellFactoryAndFormat("%s Sepolia ETH"));
+		balanceColumn.setCellFactory(createCenteredCellFactoryAndFormat("%s ETH"));
 
 		actionColumn.setCellFactory(_ -> new TableCell<>() {
-			private final Button viewBtn = new Button("👁");
-
+			private final Button viewBtn = new Button("👁"), viewHelpBtn = new Button("?");
+			private final StackPane stackPane = new StackPane(viewBtn, viewHelpBtn);
 			{
+				viewHelpBtn.getStyleClass().add("btn-help");
+				viewHelpBtn.setPrefSize(20, 20);
+				viewHelpBtn.setMinSize(20, 20);
+				viewHelpBtn.setMaxSize(20, 20);
+				viewHelpBtn.setFocusTraversable(false);
+				viewHelpBtn.setTranslateX(10);
+				viewHelpBtn.setTranslateY(-10);
+
+				StackPane.setAlignment(viewHelpBtn, Pos.TOP_RIGHT);
+
 				viewBtn.setOnAction(_ -> {
 					WalletInfo wallet = getTableView().getItems().get(getIndex());
 					windowLauncher.launchWebViewWindow(
@@ -71,12 +83,14 @@ public class WalletManagerController extends WindowAwareController {
 							String.format("%s/address/%s", etherscanUrl, wallet.address())
 					);
 				});
+
+				viewHelpBtn.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("Will open previously configured blockchain (or Sepolia testnet by default) explorer for this row Ethereum address"));
 			}
 
 			@Override
 			protected void updateItem(Void item, boolean empty) {
 				super.updateItem(item, empty);
-				setGraphic(empty ? null : viewBtn);
+				setGraphic(empty ? null : stackPane);
 			}
 		});
 

@@ -15,8 +15,10 @@ import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import lombok.Setter;
@@ -47,7 +49,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class EthereumActionsController extends WindowAwareController {
 	@FXML private Label contractIdLabel, gasResultLabel, balanceLabel;
-	@FXML private Button estimateGasBtn, deployContractBtn, checkConfirmedBtn, viewOnBlockchainBtn, getReceiptBtn;
+	@FXML private Button estimateGasBtn, estimateGasHelpBtn, deployContractBtn, deployContractHelpBtn, checkConfirmedBtn, checkConfirmedHelpBtn, viewOnBlockchainBtn, viewOnBlockchainHelpBtn, getReceiptBtn, getReceiptHelpBtn;
 	@Setter
 	@FXML private Button mainRefreshBtn;
 	@FXML private TextField transactionHashField;
@@ -81,10 +83,15 @@ public class EthereumActionsController extends WindowAwareController {
 		}
 
 		estimateGasBtn.setOnAction(_ -> estimateGas());
+		estimateGasHelpBtn.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("Will open popup to input constructor arguments for previously generated Solidity contracts.\nUpon selecting appropriate wallets for Smart contract deployer and all parties involved, will receive estimated gas price and gas limit if deployed at current time"));
 		deployContractBtn.setOnAction(_ -> deployContract());
+		deployContractHelpBtn.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("Will open popup to input constructor arguments for previously generated Solidity contract.\nUpon selecting appropriate wallets for Smart contract deployer and all parties involved, contract will be deployed and deployment transaction hash will be received."));
 		checkConfirmedBtn.setOnAction(_ -> checkConfirmation());
+		checkConfirmedHelpBtn.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("Will check if previously deployed Smart contract deployment transaction is confirmed and it`s visible on Blockchain"));
 		viewOnBlockchainBtn.setOnAction(_ -> viewContractOnBlockchain());
+		viewOnBlockchainHelpBtn.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("Will open previously configured blockchain (or Sepolia testnet by default) explorer for this Smart contract address"));
 		getReceiptBtn.setOnAction(_ -> getTransactionReceipt());
+		getReceiptHelpBtn.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("Will retrieve ethereum transaction receipt for inputted transaction hash"));
 		transactionHashField.textProperty().addListener((_, _, newValue) -> getReceiptBtn.setDisable(newValue.isEmpty()));
 	}
 
@@ -128,7 +135,7 @@ public class EthereumActionsController extends WindowAwareController {
 								"\nGas Price: " + Convert.fromWei(new BigDecimal(response.getBody().gasPriceWei()), Convert.Unit.GWEI)
 								.setScale(6, RoundingMode.HALF_UP).toPlainString() + " Gwei" +
 								"\nEstimated Cost: " + Convert.fromWei(new BigDecimal(response.getBody().gasPriceWei().multiply(response.getBody().gasLimit())), Convert.Unit.ETHER)
-								.setScale(6, RoundingMode.HALF_UP).toPlainString() + " Sepolia ETH");
+								.setScale(6, RoundingMode.HALF_UP).toPlainString() + " ETH");
 						windowLauncher.launchSuccessSpecialWindow("Gas estimation completed successfully for contract: " + contract.id());
 					});
 				else throw new HttpResponseException(response.getStatusCode().value(), response.getBody().message());
@@ -152,7 +159,7 @@ public class EthereumActionsController extends WindowAwareController {
 				else if (response.getStatusCode().is2xxSuccessful())
 					Platform.runLater(() -> {
 						mainRefreshBtn.fire();
-						windowController.getCloseButton().fire();
+						windowController.getCloseBtn().fire();
 						windowLauncher.launchSuccessSpecialWindow(response.getBody());
 					});
 				else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
@@ -176,7 +183,7 @@ public class EthereumActionsController extends WindowAwareController {
 				Platform.runLater(() -> {
 					if (response.getBody().equals("true")) {
 						mainRefreshBtn.fire();
-						windowController.getCloseButton().fire();
+						windowController.getCloseBtn().fire();
 						windowLauncher.launchSuccessSpecialWindow("Smart contract deployed at address \"" + contract.deployedAddress() + "\" has been confirmed on Blockchain");
 					} else windowLauncher.launchSuccessSpecialWindow("Smart contract deployed at address \"" + contract.deployedAddress() + "\" have not yet been confirmed on Blockchain");
 				});
@@ -241,7 +248,7 @@ public class EthereumActionsController extends WindowAwareController {
 			ResponseEntity<String> response = httpClientUtil.get(baseUrl + "/" + contract.deployedAddress() + "/balance", null, String.class);
 
 			if(response.getBody() == null) throw new NoHttpResponseException("Smart contract current balance retrieval failed with no response");
-			else if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> balanceLabel.setText("Balance 🪙: " + response.getBody() + " Sepolia ETH"));
+			else if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> balanceLabel.setText("Balance 🪙: " + response.getBody() + " ETH"));
 			else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
 		} catch (Exception e) {
 			log.error("Could not retrieve current smart contract balance", e);
@@ -249,9 +256,9 @@ public class EthereumActionsController extends WindowAwareController {
 		}
 	}
 
-	private void invokeFunction(String fn, String callerWallet, List<Object> params, BigInteger valueWei) {
+	private void invokeFunction(String smartContractFunction, String callerWallet, List<Object> params, BigInteger valueWei) {
 		try {
-			ResponseEntity<String> response = httpClientUtil.post(baseUrl + "/" + contract.deployedAddress() + "/invoke", null, new ContractFunctionRequestDTO(fn, params, valueWei.toString(), callerWallet), String.class);
+			ResponseEntity<String> response = httpClientUtil.post(baseUrl + "/" + contract.deployedAddress() + "/invoke", null, new ContractFunctionRequestDTO(smartContractFunction, params, valueWei.toString(), callerWallet), String.class);
 
 			if(response.getBody() == null) throw new NoHttpResponseException("Deployed contract confirmation check failed with no response");
 			else if (response.getStatusCode().is2xxSuccessful())
@@ -292,11 +299,11 @@ public class EthereumActionsController extends WindowAwareController {
 
 				if (!"function".equals(obj.get("type").getAsString()) || !obj.has("name")) continue;
 
-				String fnName = obj.get("name").getAsString();
+				String smartContractFunctionName = obj.get("name").getAsString();
 				String stateMutability = obj.get("stateMutability").getAsString();
 
 				// Only non-constant functions get buttons
-				if (!"view".equals(stateMutability) && !"pure".equals(stateMutability) && contract.status() != ContractStatus.TERMINATED) additionalActionButtonPane.getChildren().add(generateButton(fnName, stateMutability));
+				if (!"view".equals(stateMutability) && !"pure".equals(stateMutability) && contract.status() != ContractStatus.TERMINATED) additionalActionButtonPane.getChildren().add(generateSmartContractFunctionStackPane(smartContractFunctionName, stateMutability));
 				else
 					if ("function".equals(obj.get("type").getAsString()) && obj.has("name") && obj.has("outputs")) {
 						JsonArray outputs = obj.get("outputs").getAsJsonArray();
@@ -328,9 +335,22 @@ public class EthereumActionsController extends WindowAwareController {
 		}
 	}
 
-	private @NotNull Button generateButton(String fnName, String stateMutability) {
-		Button fnButton = new Button(fnName);
-		fnButton.setOnAction(_ -> promptForAbiParams(contract.abi(), fnName, false).thenAccept(abiResult -> {
+	private @NotNull StackPane generateSmartContractFunctionStackPane(String smartContractFunctionName, String stateMutability) {
+		final Button smartContractFunctionButton = new Button(smartContractFunctionName);
+		final Button smartContractFunctionHelpButton = new Button("?");
+		final StackPane smartContractFunctionButtonStackPane = new StackPane(smartContractFunctionButton, smartContractFunctionHelpButton);
+
+		smartContractFunctionButton.getStyleClass().add("btn-action");
+		smartContractFunctionHelpButton.getStyleClass().add("btn-help");
+		smartContractFunctionHelpButton.setPrefSize(20, 20);
+		smartContractFunctionHelpButton.setMinSize(20, 20);
+		smartContractFunctionHelpButton.setMaxSize(20, 20);
+		smartContractFunctionHelpButton.setFocusTraversable(false);
+		smartContractFunctionHelpButton.setTranslateX(10);
+		smartContractFunctionHelpButton.setTranslateY(-10);
+		StackPane.setAlignment(smartContractFunctionHelpButton, Pos.TOP_RIGHT);
+
+		smartContractFunctionButton.setOnAction(_ -> promptForAbiParams(contract.abi(), smartContractFunctionName, false).thenAccept(abiResult -> {
             try {
                 // Prompt user for all params including caller wallet as first param
                 if (abiResult.getLeft().isEmpty() && abiResult.getRight().isEmpty()) {
@@ -351,7 +371,7 @@ public class EthereumActionsController extends WindowAwareController {
                     TextInputDialog dialog = new TextInputDialog();
                     dialog.setTitle("Enter Ether Payment");
                     dialog.setHeaderText("Function is payable");
-                    dialog.setContentText("Amount in Sepolia ETH:");
+                    dialog.setContentText("Amount in ETH:");
 
                     AtomicReference<BigInteger> weiAmount = new AtomicReference<>(BigInteger.ZERO);
 
@@ -365,7 +385,7 @@ public class EthereumActionsController extends WindowAwareController {
                     valueWei = weiAmount.get();
                 }
 
-                invokeFunction(fnName, abiResult.getLeft(), abiResult.getRight(), valueWei);
+                invokeFunction(smartContractFunctionName, abiResult.getLeft(), abiResult.getRight(), valueWei);
             } catch (IllegalArgumentException illegalArgumentException){
                 log.warn("Invoking action failure", illegalArgumentException);
                 windowLauncher.launchWarnSpecialWindow("Invoking action failure:\n" + illegalArgumentException.getLocalizedMessage());
@@ -378,6 +398,7 @@ public class EthereumActionsController extends WindowAwareController {
 			windowLauncher.launchErrorSpecialWindow(e.getLocalizedMessage());
 			return null;
 		}));
-		return fnButton;
+		smartContractFunctionHelpButton.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow(String.format("Will invoke \"%s\" action upon Smart contract.%nIf action requires parameters (such as action invoker Ethereum wallet address, amount of Ethereum to transfer, etc.) those will be asked for in popup window.%nFor detailed information what this function does check Solidity code in application or Blockchain explorer", smartContractFunctionName)));
+		return smartContractFunctionButtonStackPane;
 	}
 }

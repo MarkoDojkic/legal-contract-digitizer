@@ -142,7 +142,7 @@ public class ConstructorInputController extends WindowAwareController {
             }
 
             if(retrievedParamsFuture != null) retrievedParamsFuture.complete(Pair.of(collectedParams.removeFirst().toString(), collectedParams));
-            windowController.getCloseButton().fire();
+            windowController.getCloseBtn().fire();
         } catch (Exception e) {
             if(retrievedParamsFuture != null) retrievedParamsFuture.completeExceptionally(e);
             windowLauncher.launchErrorSpecialWindow(e.getLocalizedMessage());
@@ -152,7 +152,7 @@ public class ConstructorInputController extends WindowAwareController {
     @FXML
     private void onCancel() {
         collectedParams.clear();
-        windowController.getCloseButton().fire();
+        windowController.getCloseBtn().fire();
         windowLauncher.launchWarnSpecialWindow("Action canceled");
         if(retrievedParamsFuture != null) retrievedParamsFuture.completeExceptionally(new IllegalArgumentException("Parameters were not provided or invalid."));
     }

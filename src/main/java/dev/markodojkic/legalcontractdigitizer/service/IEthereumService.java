@@ -92,8 +92,7 @@ public interface IEthereumService {
 	 * @throws InvalidFunctionCallException if the function call is invalid
 	 * @throws GasEstimationFailedException if gas estimation fails
 	 */
-	String invokeFunction(String contractAddress, String functionName, List<Object> params, BigInteger valueWei, Credentials credentials)
-			throws InvalidEthereumAddressException, InvalidFunctionCallException, GasEstimationFailedException;
+	String invokeFunction(String contractAddress, String functionName, List<Object> params, BigInteger valueWei, Credentials credentials) throws InvalidEthereumAddressException, InvalidFunctionCallException, GasEstimationFailedException;
 
 	/**
 	 * Resolves contract parties' addresses by calling specified getter functions on the contract.

@@ -11,8 +11,4 @@ import javafx.scene.web.WebEngine;
  * @param controller The JavaFX window controller.
  * @param engine     The WebEngine instance.
  */
-public record WebViewWindow(
-        Parent parent,
-        JavaFXWindowController controller,
-        WebEngine engine
-) {}
+public record WebViewWindow(Parent parent, JavaFXWindowController controller, WebEngine engine) {}

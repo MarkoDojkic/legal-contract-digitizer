@@ -9,8 +9,4 @@ import java.util.List;
  * @param deployerWalletAddress Ethereum wallet address initiating the deployment.
  * @param constructorParams    Parameters to pass to the contract constructor.
  */
-public record DeploymentRequestDTO(
-        String contractId,
-        String deployerWalletAddress,
-        List<Object> constructorParams
-) {}
+public record DeploymentRequestDTO(String contractId, String deployerWalletAddress, List<Object> constructorParams) {}

@@ -10,9 +10,4 @@ import java.util.List;
  * @param valueWei                  Value in Wei to send with the function call (as a string to avoid JSON encoding issues).
  * @param requestedByWalletAddress The wallet address of the caller requesting the invocation.
  */
-public record ContractFunctionRequestDTO(
-        String functionName,
-        List<Object> params,
-        String valueWei,
-        String requestedByWalletAddress
-) {}
+public record ContractFunctionRequestDTO(String functionName, List<Object> params, String valueWei, String requestedByWalletAddress) {}

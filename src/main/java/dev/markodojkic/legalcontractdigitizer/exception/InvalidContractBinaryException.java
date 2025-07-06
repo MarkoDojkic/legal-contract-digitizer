@@ -5,7 +5,7 @@ import java.io.Serial;
 /**
  * Exception thrown when the contract binary is invalid or malformed.
  */
-public class InvalidContractBinaryException extends Exception {
+public class InvalidContractBinaryException extends RuntimeException {
 	@Serial
 	private static final long serialVersionUID = -2568514613302719912L;
 

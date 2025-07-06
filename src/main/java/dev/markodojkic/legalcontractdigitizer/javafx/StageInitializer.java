@@ -36,12 +36,6 @@ public class StageInitializer implements ApplicationListener<StageReadyEvent> {
         windowLauncher.setRootPane(root);
 
         // Launch login window as a pane inside root
-        windowLauncher.launchWindow(
-                "Login window",
-                500, 500,
-                "/layout/login.fxml",
-                Objects.requireNonNull(getClass().getResource("/static/style/login.css")).toExternalForm(),
-                loginController
-        );
+        windowLauncher.launchWindow("Login window", 500, 500, "/layout/login.fxml", Objects.requireNonNull(getClass().getResource("/static/style/login.css")).toExternalForm(), loginController);
     }
 }

@@ -81,14 +81,14 @@ public class EthereumController {
 		}
 	}
 
-	@Operation(summary = "Check if contract is confirmed (code exists at address)", description = "Returns true if the Ethereum contract is deployed and confirmed at the address.", responses = {@ApiResponse(responseCode = "200", description = "Confirmation status returned"), @ApiResponse(responseCode = "400", description = "Invalid Ethereum address"), @ApiResponse(responseCode = "403", description = "Unauthorized access to contract"), @ApiResponse(responseCode = "404", description = "Contract not found"), @ApiResponse(responseCode = "500", description = "Failed to check confirmation status")})
-	@GetMapping("/{address}/confirmed")
-	public ResponseEntity<String> isContractConfirmed(@Parameter(description = "Ethereum contract address to check", required = true) @PathVariable String address) {
+	@Operation(summary = "Check if smart contract exists (code exists at address and isDestroyed flag is false)", description = "Returns true if the Ethereum contract is deployed, confirmed at the address and not destroyed.", responses = {@ApiResponse(responseCode = "200", description = "Existence status returned"), @ApiResponse(responseCode = "400", description = "Invalid Ethereum address"), @ApiResponse(responseCode = "403", description = "Unauthorized access to contract"), @ApiResponse(responseCode = "404", description = "Contract not found"), @ApiResponse(responseCode = "500", description = "Failed to check confirmation status")})
+	@GetMapping("/{address}/exists")
+	public ResponseEntity<String> doesSmartContractExist(@Parameter(description = "Ethereum contract address to check", required = true) @PathVariable String address) {
 
 		try {
-			boolean confirmed = ethereumService.doesSmartContractExist(address);
-			if (confirmed) contractService.updateContractStatus(address, CONFIRMED);
-			return ResponseEntity.ok().body(String.valueOf(confirmed));
+			boolean exists = ethereumService.doesSmartContractExist(address);
+			if (exists) contractService.updateContractStatus(address, CONFIRMED);
+			return ResponseEntity.ok().body(String.valueOf(exists));
 		} catch (UnauthorizedAccessException e) {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getLocalizedMessage());
 		} catch (ContractNotFoundException e) {

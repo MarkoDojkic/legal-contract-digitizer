@@ -13,15 +13,10 @@ import java.math.BigDecimal;
  * @param balance      The balance in BigDecimal.
  * @param keystoreFile The keystore file path (ignored in JSON serialization).
  */
-public record WalletInfo(
-		String label,
-		String address,
-		BigDecimal balance,
-		@JsonIgnore String keystoreFile
-) {
+public record WalletInfo(String label, String address, BigDecimal balance, @JsonIgnore String keystoreFile) {
 	@NotNull
 	@Override
 	public String toString() {
-		return String.format("%s (%s) - Balance \uD83E\uDE99: %f Sepolia ETH", label, address, balance);
+		return String.format("%s (%s) - Balance 🪙: %f Sepolia ETH", label, address, balance);
 	}
 }

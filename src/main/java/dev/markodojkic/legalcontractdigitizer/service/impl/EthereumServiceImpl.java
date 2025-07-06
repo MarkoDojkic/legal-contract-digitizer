@@ -23,6 +23,7 @@ import org.web3j.crypto.Credentials;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.Transaction;
+import org.web3j.protocol.core.methods.response.EthCall;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.RawTransactionManager;
@@ -62,11 +63,12 @@ public class EthereumServiceImpl implements IEthereumService {
             log.debug("EthereumService initialized with RPC {}, chainId {}", ethereumRpcUrl, chainId);
         } catch (Exception e) {
             log.error("Failed to initialize EthereumService", e);
-            throw new RuntimeException("Failed to connect to Ethereum RPC", e);
+            throw new IllegalStateException("Failed to connect to Ethereum RPC", e);
         }
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public EthereumContractContext buildDeploymentContext(String binary, List<Object> constructorParams) throws InvalidContractBinaryException {
         if (binary == null || binary.isBlank()) throw new InvalidContractBinaryException("Contract binary must not be null or empty");
         try {
@@ -149,11 +151,17 @@ public class EthereumServiceImpl implements IEthereumService {
 
             // Step 2: Check `destroyed` flag via eth_call
 
-            return web3j.ethCall(Transaction.createEthCallTransaction(
-                    null, // from address can be null for eth_call
-                    contractAddress,
-                    "0x359cbbc9"), DefaultBlockParameterName.LATEST).send().isReverted();
+            EthCall response = web3j.ethCall(
+                    Transaction.createEthCallTransaction(
+                            null, // from address
+                            contractAddress,
+                            "0x359cbbc9" // function selector for `destroyed()`
+                    ),
+                    DefaultBlockParameterName.LATEST).send();
 
+            if (response.hasError()) throw new EthereumConnectionException("Error during eth_call: " + response.getError().getMessage());
+
+            return new BigInteger(response.getValue().substring(2), 16).compareTo(BigInteger.ZERO) == 0;
         } catch (Exception e) {
             log.error("Failed to get contract code or destroyed flag", e);
             throw new EthereumConnectionException("Failed to check contract existence: " + e.getLocalizedMessage());
@@ -209,6 +217,7 @@ public class EthereumServiceImpl implements IEthereumService {
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public Map<String, String> resolveContractPartiesAddressData(String contractAddress, List<String> getterFunctions) {
         Map<String, String> results = new HashMap<>();
         for (String getter : getterFunctions) {
@@ -248,6 +257,7 @@ public class EthereumServiceImpl implements IEthereumService {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private List<Type> convertToAbiTypes(List<Object> constructorParams) {
         List<Type> abiTypes = new ArrayList<>();
 

@@ -4,7 +4,9 @@ import dev.markodojkic.legalcontractdigitizer.exception.CompilationException;
 import dev.markodojkic.legalcontractdigitizer.exception.ContractAlreadyConfirmedException;
 import dev.markodojkic.legalcontractdigitizer.exception.ContractNotFoundException;
 import dev.markodojkic.legalcontractdigitizer.exception.UnauthorizedAccessException;
+import dev.markodojkic.legalcontractdigitizer.model.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.service.IContractService;
+import dev.markodojkic.legalcontractdigitizer.util.Either;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -15,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/contracts")
@@ -38,25 +42,25 @@ public class ContractController {
 
 	@Operation(summary = "Get contract by ID", description = "Retrieves a contract by its unique ID.", responses = {@ApiResponse(responseCode = "200", description = "Contract retrieved successfully"), @ApiResponse(responseCode = "403", description = "Unauthorized access to contract"), @ApiResponse(responseCode = "404", description = "Contract not found"), @ApiResponse(responseCode = "500", description = "Internal server error")})
 	@GetMapping("/{id}")
-	public ResponseEntity<?> getContract(@Parameter(description = "ID of the contract to retrieve", required = true) @PathVariable String id) {
+	public ResponseEntity<Either<DigitalizedContract, String>> getContract(@Parameter(description = "ID of the contract to retrieve", required = true) @PathVariable String id) {
 		try {
-			return ResponseEntity.ok(contractService.getContract(id));
+			return ResponseEntity.ok(Either.left(contractService.getContract(id)));
 		} catch (UnauthorizedAccessException e) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getLocalizedMessage());
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Either.right(e.getLocalizedMessage()));
 		} catch (ContractNotFoundException e) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getLocalizedMessage());
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Either.right(e.getLocalizedMessage()));
 		} catch (Exception e) {
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getLocalizedMessage());
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Either.right(e.getLocalizedMessage()));
 		}
 	}
 
 	@Operation(summary = "List all contracts for a user", description = "Returns a list of all contracts associated with the current user.", responses = {@ApiResponse(responseCode = "200", description = "Contracts listed successfully"), @ApiResponse(responseCode = "500", description = "Internal server error")})
 	@GetMapping("/list")
-	public ResponseEntity<?> listUserContracts() {
+	public ResponseEntity<Either<List<DigitalizedContract>, String>> listUserContracts() {
 		try {
-			return ResponseEntity.ok(contractService.listContractsForUser());
+			return ResponseEntity.ok(Either.left(contractService.listContractsForUser()));
 		} catch (Exception e) {
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getLocalizedMessage());
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Either.right(e.getLocalizedMessage()));
 		}
 	}
 
@@ -89,6 +93,22 @@ public class ContractController {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getLocalizedMessage());
 		}
 	}
+
+	@Operation(summary = "Edit solidity code for contract", description = "Edits prepared Solidity smart contract for a legal contract.", responses = { @ApiResponse(responseCode = "200", description = "Solidity code edited successfully"), @ApiResponse(responseCode = "403", description = "Unauthorized access to contract"), @ApiResponse(responseCode = "404", description = "Contract not found"), @ApiResponse(responseCode = "500", description = "Server error occurred") })
+	@PatchMapping("/edit-solidity")
+	public ResponseEntity<String> editSolidity(@RequestBody @Parameter(description = "DigitalizedContract object with id and updated Solidity source only", required = true) DigitalizedContract updatedDigitalizedContract) {
+		try {
+			contractService.editSolidity(updatedDigitalizedContract.id(), updatedDigitalizedContract.soliditySource());
+			return ResponseEntity.noContent().build();
+		} catch (UnauthorizedAccessException e) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getLocalizedMessage());
+		} catch (ContractNotFoundException e) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getLocalizedMessage());
+		} catch (Exception e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getLocalizedMessage());
+		}
+	}
+
 
 	@Operation(summary = "Delete contract if not confirmed", description = "Deletes a contract by ID if it has not been confirmed/deployed.", responses = {@ApiResponse(responseCode = "204", description = "Contract deleted successfully"), @ApiResponse(responseCode = "403", description = "Unauthorized access to contract"), @ApiResponse(responseCode = "409", description = "Contract already confirmed"), @ApiResponse(responseCode = "500", description = "Internal server error")})
 	@DeleteMapping("/{id}")

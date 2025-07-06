@@ -45,6 +45,15 @@ public final class AuthSession {
     }
 
     /**
+     * Checks whether a valid refresh token is currently set.
+     *
+     * @return true if refresh token is non-null and non-empty
+     */
+    public static boolean hasRefreshToken() {
+        return refreshToken != null && !refreshToken.isEmpty();
+    }
+
+    /**
      * Clears the current access and refresh tokens.
      */
     public static void logout() {

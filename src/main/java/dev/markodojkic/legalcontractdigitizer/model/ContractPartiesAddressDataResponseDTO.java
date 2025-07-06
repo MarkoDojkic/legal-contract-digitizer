@@ -7,6 +7,4 @@ import java.util.Map;
  *
  * @param resolvedAddresses A map of function names to their resolved Ethereum addresses.
  */
-public record ContractPartiesAddressDataResponseDTO(
-        Map<String, String> resolvedAddresses
-) {}
+public record ContractPartiesAddressDataResponseDTO(Map<String, String> resolvedAddresses) {}

@@ -25,6 +25,3 @@ google:
     secret: ${GOOGLE_CLIENT_SECRET}
   authUrl: ${GOOGLE_AUTH_URL:https://accounts.google.com/o/oauth2/v2/auth}
   redirectUrl: ${GOOGLE_REDIRECT_URL:https://legal-contract-digitizer.firebaseapp.com/__/auth/handler}
-  tokenUrl: ${GOOGLE_TOKEN_URL:https://oauth2.googleapis.com/token}
-  tokenInfoUrl: ${GOOGLE_TOKEN_INFO_URL:https://www.googleapis.com/oauth2/v1/tokeninfo}
-

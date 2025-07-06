@@ -9,15 +9,16 @@ import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
-import java.lang.reflect.Type;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Component
 public class ConstructorInputController extends WindowAwareController {
@@ -33,6 +34,10 @@ public class ConstructorInputController extends WindowAwareController {
     private final List<Control> paramFields;
     private final List<Object> collectedParams;
 
+    @Setter
+    @Getter
+    private CompletableFuture<Pair<String, List<Object>>> retrievedParamsFuture;
+
     @Autowired
     public ConstructorInputController(WindowLauncher windowLauncher, ApplicationContext applicationContext) {
         super(windowLauncher, applicationContext);
@@ -41,27 +46,17 @@ public class ConstructorInputController extends WindowAwareController {
         collectedParams = new ArrayList<>();
     }
 
+    @SuppressWarnings("unchecked")
     public void loadParamInputs(String abiJson, String targetNameOrType, boolean isConstructor) {
         dynamicFieldsBox.getChildren().clear();
         paramTypes.clear();
         paramFields.clear();
 
-        if (titleLabel != null) {
-            titleLabel.setText(isConstructor ? "Enter Constructor Parameters" : "Enter Function Parameters");
-        }
-
-        Gson gson = new Gson();
-        Type listType = new TypeToken<List<JsonObject>>() {}.getType();
-        List<JsonObject> abiList = gson.fromJson(abiJson, listType);
+        if (titleLabel != null) titleLabel.setText(isConstructor ? "Enter Constructor Parameters" : "Enter Function Parameters");
 
         JsonObject target = null;
-        for (JsonObject item : abiList) {
-            if (isConstructor && "constructor".equals(item.get("type").getAsString())) {
-                target = item;
-                break;
-            }
-            if (!isConstructor && "function".equals(item.get("type").getAsString())
-                    && item.has("name") && targetNameOrType.equals(item.get("name").getAsString())) {
+        for (JsonObject item : (List<JsonObject>) new Gson().fromJson(abiJson, new TypeToken<List<JsonObject>>() {}.getType())) {
+            if ((isConstructor && "constructor".equals(item.get("type").getAsString())) || (!isConstructor && "function".equals(item.get("type").getAsString()) && item.has("name") && targetNameOrType.equals(item.get("name").getAsString()))) {
                 target = item;
                 break;
             }
@@ -87,9 +82,7 @@ public class ConstructorInputController extends WindowAwareController {
             if (walletInfos != null && !walletInfos.isEmpty()) {
                 callerDropdown.getItems().addAll(walletInfos);
                 callerDropdown.setPromptText("Choose caller address");
-            } else {
-                callerDropdown.setPromptText("No wallets available");
-            }
+            } else callerDropdown.setPromptText("No wallets available");
             paramTypes.add(ADDRESS);
             paramFields.add(callerDropdown);
             dynamicFieldsBox.getChildren().add(createLabeledField(callerLabel, callerDropdown));
@@ -131,24 +124,27 @@ public class ConstructorInputController extends WindowAwareController {
             collectedParams.clear();
             for (int i = 0; i < paramTypes.size(); i++) {
                 String type = paramTypes.get(i);
-                Control field = paramFields.get(i);
-                String value;
-
-                if (field instanceof ComboBox<?> cb) {
-                    Object selected = cb.getValue();
-                    if (selected == null) throw new IllegalArgumentException("Missing selection for " + type);
-                    value = (selected instanceof WalletInfo wi) ? wi.address() : selected.toString();
-                } else if (field instanceof TextField tf) {
-                    value = tf.getText();
-                    if (value == null || value.isBlank()) throw new IllegalArgumentException("Missing input for " + type);
-                } else {
-                    throw new IllegalArgumentException("Unknown input field type");
-                }
+                String value = switch (paramFields.get(i)) {
+                    case ComboBox<?> cb -> {
+                        Object selected = cb.getValue();
+                        if (selected == null) throw new IllegalArgumentException("Missing selection for " + type);
+                        yield (selected instanceof WalletInfo wi) ? wi.address() : selected.toString();
+                    }
+                    case TextField tf -> {
+                        String text = tf.getText();
+                        if (text == null || text.isBlank()) throw new IllegalArgumentException("Missing input for " + type);
+                        yield text;
+                    }
+                    default -> throw new IllegalArgumentException("Unknown input field type");
+                };
 
                 collectedParams.add(parseParam(type, value));
             }
+
+            if(retrievedParamsFuture != null) retrievedParamsFuture.complete(Pair.of(collectedParams.removeFirst().toString(), collectedParams));
             windowController.getCloseButton().fire();
         } catch (Exception e) {
+            if(retrievedParamsFuture != null) retrievedParamsFuture.completeExceptionally(e);
             windowLauncher.launchErrorSpecialWindow(e.getLocalizedMessage());
         }
     }
@@ -158,10 +154,7 @@ public class ConstructorInputController extends WindowAwareController {
         collectedParams.clear();
         windowController.getCloseButton().fire();
         windowLauncher.launchWarnSpecialWindow("Action canceled");
-    }
-
-    public List<Object> getParams() {
-        return collectedParams;
+        if(retrievedParamsFuture != null) retrievedParamsFuture.completeExceptionally(new IllegalArgumentException("Parameters were not provided or invalid."));
     }
 
     private Object parseParam(String type, String value) {
@@ -175,16 +168,12 @@ public class ConstructorInputController extends WindowAwareController {
 
         return switch (type) {
             case ADDRESS, "address payable" -> {
-                if (!value.matches("^0x[a-fA-F0-9]{40}$")) {
-                    throw new IllegalArgumentException("Invalid Ethereum address: " + value);
-                }
+                if (!value.matches("^0x[a-fA-F0-9]{40}$")) throw new IllegalArgumentException("Invalid Ethereum address: " + value);
                 yield value;
             }
             case "uint256", "uint", "int", "int256" -> new BigInteger(value);
             case "bool" -> {
-                if (!value.equalsIgnoreCase("true") && !value.equalsIgnoreCase("false")) {
-                    throw new IllegalArgumentException("Invalid boolean value: " + value);
-                }
+                if (!value.equalsIgnoreCase("true") && !value.equalsIgnoreCase("false")) throw new IllegalArgumentException("Invalid boolean value: " + value);
                 yield Boolean.parseBoolean(value);
             }
 	        default -> value;

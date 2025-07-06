@@ -8,7 +8,4 @@ import java.util.List;
  * @param contractAddress The deployed contract's address.
  * @param getterFunctions List of getter function names to call for retrieving party addresses.
  */
-public record ContractPartiesAddressDataRequestDTO(
-        String contractAddress,
-        List<String> getterFunctions
-) {}
+public record ContractPartiesAddressDataRequestDTO(String contractAddress, List<String> getterFunctions) {}

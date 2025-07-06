@@ -6,6 +6,7 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
+import dev.markodojkic.legalcontractdigitizer.exception.UnauthorizedAccessException;
 import dev.markodojkic.legalcontractdigitizer.model.WebViewWindow;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
@@ -45,21 +46,15 @@ public class LoginController extends WindowAwareController {
         this.googleRedirectUrl = googleRedirectUrl;
 
         // Initialize Google AuthorizationCodeFlow
-        this.authorizationCodeFlow = new GoogleAuthorizationCodeFlow.Builder(
-                    GoogleNetHttpTransport.newTrustedTransport(),
-                    GsonFactory.getDefaultInstance(),
-                    clientId,
-                    clientSecret,
-                    Collections.singleton("openid profile email"))
-                    .build();
-        }
+        this.authorizationCodeFlow = new GoogleAuthorizationCodeFlow.Builder(GoogleNetHttpTransport.newTrustedTransport(), GsonFactory.getDefaultInstance(), clientId, clientSecret, Collections.singleton("openid profile email")).build();
+    }
 
-    private final Preferences prefs = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
+    private final Preferences preferences = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
 
     @FXML
     public void onLoginButtonClicked() {
-        AuthSession.setAccessToken(prefs.get("accessToken", null));
-        AuthSession.setRefreshToken(prefs.get("refreshToken", null));
+        AuthSession.setAccessToken(preferences.get("accessToken", null));
+        AuthSession.setRefreshToken(preferences.get("refreshToken", null));
         if (AuthSession.hasAccessToken()) login("");
         else launchGoogleSignInFlow();
     }
@@ -71,14 +66,10 @@ public class LoginController extends WindowAwareController {
                 String query = parts[1];
                 for (String pair : query.split("&")) {
                     String[] keyVal = pair.split("=");
-                    if (keyVal.length == 2 && keyVal[0].equals(param)) {
-                        return URLDecoder.decode(keyVal[1], StandardCharsets.UTF_8);
-                    }
+                    if (keyVal.length == 2 && keyVal[0].equals(param)) return URLDecoder.decode(keyVal[1], StandardCharsets.UTF_8);
                 }
             }
-        } catch (Exception _) {
-            // ignore parsing errors
-        }
+        } catch (Exception _) { /* Ignore parsing errors */}
         return null;
     }
 
@@ -90,8 +81,8 @@ public class LoginController extends WindowAwareController {
                     .execute();
 
             // Save tokens and login
-            prefs.put("accessToken", tokenResponse.getAccessToken());
-            prefs.put("refreshToken", tokenResponse.getRefreshToken());
+            preferences.put("accessToken", tokenResponse.getAccessToken());
+            preferences.put("refreshToken", tokenResponse.getRefreshToken());
 
             AuthSession.setAccessToken(tokenResponse.getAccessToken());
             AuthSession.setRefreshToken(tokenResponse.getRefreshToken());
@@ -111,21 +102,12 @@ public class LoginController extends WindowAwareController {
                 JsonObject jsonObject = JsonParser.parseString(payload).getAsJsonObject();
 
                 // Store this user data for use in the app
-                prefs.put("name", jsonObject.get("name").getAsString());
-                prefs.put("email", jsonObject.get("email").getAsString());
-            } else if(!AuthSession.hasAccessToken()) {
-                throw new Exception("Invalid ID token structure.");
-            }
+                preferences.put("name", jsonObject.get("name").getAsString());
+                preferences.put("email", jsonObject.get("email").getAsString());
+            } else if(!AuthSession.hasAccessToken()) throw new UnauthorizedAccessException("Invalid ID token structure.");
 
             // Launch main window after successful login
-            windowLauncher.launchWindow(
-                    "Main window",
-                    1280,
-                    1024,
-                    "/layout/main.fxml",
-                    Objects.requireNonNull(getClass().getResource("/static/style/main.css")).toExternalForm(),
-                    applicationContext.getBean(MainController.class)
-            );
+            windowLauncher.launchWindow("Main window", 1280, 1024, "/layout/main.fxml", Objects.requireNonNull(getClass().getResource("/static/style/main.css")).toExternalForm(), applicationContext.getBean(MainController.class));
             windowLauncher.launchSuccessSpecialWindow("Login successful!");
             windowController.getCloseButton().fire();
         } catch (Exception e) {
@@ -135,14 +117,9 @@ public class LoginController extends WindowAwareController {
     }
 
     private void launchGoogleSignInFlow() {
-        WebViewWindow googleLoginWindow = windowLauncher.launchWebViewWindow(
-                "Google Sign-In",
-                1024,
-                768,
-                googleAuthUrl
-        );
+        WebViewWindow googleLoginWindow = windowLauncher.launchWebViewWindow("Google Sign-In", 1024, 768, googleAuthUrl);
 
-        googleLoginWindow.engine().locationProperty().addListener((obs, oldLoc, newLoc) -> {
+        googleLoginWindow.engine().locationProperty().addListener((_, _, newLoc) -> {
             if (newLoc != null && newLoc.contains("code=")) {
                 Platform.runLater(() -> {
                     String code = extractQueryParam(newLoc, "code");
@@ -153,9 +130,7 @@ public class LoginController extends WindowAwareController {
                 String error = extractQueryParam(newLoc, "error");
                 windowLauncher.launchErrorSpecialWindow("Google login window was redirected to: " + (error != null ? error : "Unknown"));
 
-                if (googleLoginWindow.controller() != null) {
-                    Platform.runLater(() -> googleLoginWindow.controller().getCloseButton().fire());
-                }
+                if (googleLoginWindow.controller() != null) Platform.runLater(() -> googleLoginWindow.controller().getCloseButton().fire());
             }
         });
     }

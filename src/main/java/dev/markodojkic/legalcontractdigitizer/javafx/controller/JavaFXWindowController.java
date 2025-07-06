@@ -22,7 +22,7 @@ import java.util.Objects;
 @Component
 public class JavaFXWindowController {
     @FXML public BorderPane borderPane;
-    @FXML @Getter  public Button minimizeBtn, shrinkBtn, closeButton;
+    @FXML @Getter  public Button minimizeBtn, shrinkBtn, closeBtn;
     @FXML @Getter private HBox titleBar, statusBar;
     @FXML @Getter private StackPane contentArea;
 
@@ -37,7 +37,7 @@ public class JavaFXWindowController {
 
     @FXML
     private void initialize() {
-        closeButton.setOnAction(_ -> closeWindow());
+        closeBtn.setOnAction(_ -> closeWindow());
         minimizeBtn.setOnAction(_ -> toggleMinimize());
         shrinkBtn.setOnAction(_ -> toggleShrink());
     }

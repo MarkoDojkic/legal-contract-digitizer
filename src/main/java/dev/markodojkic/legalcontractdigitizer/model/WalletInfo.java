@@ -17,6 +17,6 @@ public record WalletInfo(String label, String address, BigDecimal balance, @Json
 	@NotNull
 	@Override
 	public String toString() {
-		return String.format("%s (%s) - Balance 🪙: %f Sepolia ETH", label, address, balance);
+		return String.format("%s (%s) - Balance 🪙: %f ETH", label, address, balance);
 	}
 }

@@ -4,11 +4,12 @@
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
+
 <VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml" spacing="10" alignment="CENTER" style="-fx-padding: 20;">
     <Label fx:id="titleLabel" text="Enter Parameters" />
     <VBox fx:id="dynamicFieldsBox" spacing="10" />
     <HBox spacing="10" alignment="CENTER">
-        <Button text="Cancel" onAction="#onCancel" />
         <Button text="Confirm" onAction="#onConfirm" />
+        <Button text="Cancel" onAction="#onCancel" />
     </HBox>
 </VBox>

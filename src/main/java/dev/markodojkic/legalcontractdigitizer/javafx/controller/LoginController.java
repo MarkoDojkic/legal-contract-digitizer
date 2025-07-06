@@ -32,6 +32,7 @@ public class LoginController extends WindowAwareController {
 
     private final String googleAuthUrl, googleRedirectUrl;
     private final GoogleAuthorizationCodeFlow authorizationCodeFlow;
+    private final Preferences preferences = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
 
     @SneakyThrows
     @Autowired
@@ -49,14 +50,17 @@ public class LoginController extends WindowAwareController {
         this.authorizationCodeFlow = new GoogleAuthorizationCodeFlow.Builder(GoogleNetHttpTransport.newTrustedTransport(), GsonFactory.getDefaultInstance(), clientId, clientSecret, Collections.singleton("openid profile email")).build();
     }
 
-    private final Preferences preferences = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
-
     @FXML
-    public void onLoginButtonClicked() {
+    public void onLoginBtnClicked() {
         AuthSession.setAccessToken(preferences.get("accessToken", null));
         AuthSession.setRefreshToken(preferences.get("refreshToken", null));
         if (AuthSession.hasAccessToken()) login("");
         else launchGoogleSignInFlow();
+    }
+
+    @FXML
+    public void onLoginHelpBtnClicked() {
+        windowLauncher.launchHelpSpecialWindow("You will be prompted to login with Google account. \nAccess will be granted directly if access token is stored (during previous successful login).\nIn case of access token expiration, refresh token will be used to renew access token.");
     }
 
     private String extractQueryParam(String url, String param) {
@@ -109,7 +113,7 @@ public class LoginController extends WindowAwareController {
             // Launch main window after successful login
             windowLauncher.launchWindow("Main window", 1280, 1024, "/layout/main.fxml", Objects.requireNonNull(getClass().getResource("/static/style/main.css")).toExternalForm(), applicationContext.getBean(MainController.class));
             windowLauncher.launchSuccessSpecialWindow("Login successful!");
-            windowController.getCloseButton().fire();
+            windowController.getCloseBtn().fire();
         } catch (Exception e) {
             log.error("Error occurred during login: {}", e.getLocalizedMessage());
             windowLauncher.launchErrorSpecialWindow("Error occurred during login: " + e.getLocalizedMessage());
@@ -124,13 +128,13 @@ public class LoginController extends WindowAwareController {
                 Platform.runLater(() -> {
                     String code = extractQueryParam(newLoc, "code");
                     if (code != null) exchangeCodeForTokens(code);
-                    googleLoginWindow.controller().getCloseButton().fire();
+                    googleLoginWindow.controller().getCloseBtn().fire();
                 });
             } else if (newLoc != null && newLoc.contains("error=")) {
                 String error = extractQueryParam(newLoc, "error");
                 windowLauncher.launchErrorSpecialWindow("Google login window was redirected to: " + (error != null ? error : "Unknown"));
 
-                if (googleLoginWindow.controller() != null) Platform.runLater(() -> googleLoginWindow.controller().getCloseButton().fire());
+                if (googleLoginWindow.controller() != null) Platform.runLater(() -> googleLoginWindow.controller().getCloseBtn().fire());
             }
         });
     }

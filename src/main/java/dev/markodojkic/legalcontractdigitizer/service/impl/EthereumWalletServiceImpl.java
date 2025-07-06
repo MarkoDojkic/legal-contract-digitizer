@@ -30,7 +30,7 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 
 	private static final String KEYSTORE_DIR = "ethWallets", WALLETS = "wallets";
 	// Regex pattern to match files like "MyWallet-0x1234567890abcdef1234567890abcdef12345678"
-	private static final Pattern WALLET_FILENAME_PATTERN = Pattern.compile("([a-zA-Z0-9\\-_]+)-([0-9a-fA-F]{40}).json");
+	private static final Pattern WALLET_FILENAME_PATTERN = Pattern.compile("(.*)-([0-9a-fA-F]{40}).json");
 
 	@Value("${ethereum.walletKeystore.password}")
 	private String walletKeystorePassword;
@@ -127,7 +127,7 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 						try {
 							balance = ethereumService.getBalance(address);
 						} catch (EthereumConnectionException e) {
-							log.error("Cannot get balance for wallet, will fallback to -1.0 Sepolia ETH", e);
+							log.error("Cannot get balance for wallet, will fallback to -1.0 ETH", e);
 						}
 						return new WalletInfo(label, address, balance, file.getName());
 					}

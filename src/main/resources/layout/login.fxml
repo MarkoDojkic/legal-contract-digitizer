@@ -4,11 +4,15 @@
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
+
 <StackPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml"
            styleClass="login-pane">
     <VBox spacing="15" alignment="CENTER">
         <Label text="Login" styleClass="login-title" />
-        <Button fx:id="loginButton" text="Login with Google" onAction="#onLoginButtonClicked"/>
+        <StackPane maxHeight="40" maxWidth="218">
+            <Button id="loginBtn" text="Login with Google" onAction="#onLoginBtnClicked"/>
+            <Button onAction="#onLoginHelpBtnClicked" text="?" maxWidth="20" maxHeight="20" minWidth="20" minHeight="20" styleClass="btn-help" StackPane.alignment="TOP_RIGHT" focusTraversable="false" translateX="10" translateY="-10" />
+        </StackPane>
         <Label fx:id="messageLabel" text="Please log in to continue." styleClass="login-message" wrapText="true" />
     </VBox>
 </StackPane>

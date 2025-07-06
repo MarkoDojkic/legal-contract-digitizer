@@ -9,12 +9,12 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.oauth2.Oauth2;
 import com.google.api.services.oauth2.model.Tokeninfo;
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
-import dev.markodojkic.legalcontractdigitizer.exception.UnauthorizedAccessException;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -28,12 +28,10 @@ import java.util.prefs.Preferences;
 
 /**
  * A filter that validates Google OAuth2 access tokens and sets up Spring Security authentication context.
- * <p>
- * It intercepts incoming requests, checks for a Bearer token, and verifies it against Google's token info endpoint.
- * If the token is expired but a valid refresh token is available, it will refresh the access token.
  */
 @RequiredArgsConstructor
 @Component
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Value("${spring.application.name}")
@@ -45,86 +43,74 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Value("${google.client.secret}")
     private String clientSecret;
 
-    @Value("${google.tokenUrl}")
-    private String googleTokenUrl;
-
-    @Value("${google.tokenInfoUrl}")
-    private String googleTokenInfoUrl;
-
     private final HttpTransport httpTransport = new NetHttpTransport();
     private final JsonFactory jsonFactory = new GsonFactory();
 
-    /**
-     * Filters each incoming request and validates the Authorization header.
-     *
-     * @param request     the HTTP request
-     * @param response    the HTTP response
-     * @param filterChain the filter chain
-     * @throws ServletException in case of a servlet exception
-     * @throws IOException      in case of an I/O error
-     */
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-
+    protected void doFilterInternal(HttpServletRequest request, @NotNull HttpServletResponse response, @NotNull FilterChain filterChain) throws IOException {
         String authHeader = request.getHeader("Authorization");
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String accessToken = authHeader.substring(7);
-
-            try {
-                Tokeninfo tokeninfo = extractTokenInfo(accessToken);
-
-                if (tokeninfo == null || !tokeninfo.getAudience().equals(clientId)) {
-                    throw new UnauthorizedAccessException("Access token is not for this application");
-                } else if (tokeninfo.getExpiresIn() == 0) {
-                    String refreshToken = AuthSession.getRefreshToken();
-
-                    if (refreshToken != null && !refreshToken.isEmpty()) {
-                        String newAccessToken = refreshAccessToken(refreshToken);
-
-                        if (newAccessToken != null) {
-                            AuthSession.setAccessToken(newAccessToken);
-                            Preferences.userNodeForPackage(LegalContractDigitizerApplication.class)
-                                    .put("accessToken", newAccessToken);
-                            tokeninfo = extractTokenInfo(newAccessToken);
-
-                            if (tokeninfo == null || tokeninfo.getExpiresIn() == 0) {
-                                throw new UnauthorizedAccessException("Refreshed access token is expired");
-                            }
-                        } else {
-                            throw new UnauthorizedAccessException("Access token and refresh access token are invalid");
-                        }
-                    } else {
-                        throw new UnauthorizedAccessException("Refresh access token is invalid");
-                    }
-                }
-
-                SecurityContextHolder.getContext().setAuthentication(
-                        new UsernamePasswordAuthenticationToken(
-                                tokeninfo.getUserId(),
-                                null,
-                                List.of(new SimpleGrantedAuthority("ROLE_USER"))
-                        )
-                );
-            } catch (Exception e) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                return;
-            }
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            unauthorized(response, "Missing or invalid Authorization header");
+            return;
         }
 
-        filterChain.doFilter(request, response);
+        String accessToken = authHeader.substring(7);
+
+        try {
+            Tokeninfo tokenInfo = extractTokenInfo(accessToken);
+
+            if (tokenInfo == null && !AuthSession.hasRefreshToken()) {
+                unauthorized(response, "Invalid access token");
+                return;
+            }
+
+            // Verify the token audience (client ID)
+            if (tokenInfo != null && !clientId.equals(tokenInfo.getAudience())) {
+                unauthorized(response, "Access token audience mismatch");
+                return;
+            }
+
+            // Check if token expires within next 5 minutes (300 seconds)
+            if (tokenInfo == null || tokenInfo.getExpiresIn() <= 300) {
+                String refreshToken = AuthSession.getRefreshToken();
+
+                if (refreshToken == null || refreshToken.isEmpty()) {
+                    unauthorized(response, "No refresh token available to renew access token");
+                    return;
+                }
+
+                String newAccessToken = refreshAccessToken(refreshToken);
+
+                if (newAccessToken == null) {
+                    unauthorized(response, "Failed to refresh access token");
+                    return;
+                }
+
+                AuthSession.setAccessToken(newAccessToken);
+
+                Preferences.userNodeForPackage(LegalContractDigitizerApplication.class).put("accessToken", newAccessToken);
+
+                // Re-validate new access token
+                tokenInfo = extractTokenInfo(newAccessToken);
+
+                if (tokenInfo == null || !clientId.equals(tokenInfo.getAudience())) {
+                    unauthorized(response, "Refreshed access token invalid or audience mismatch");
+                    return;
+                }
+            }
+
+            SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(tokenInfo.getUserId(), null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+
+            filterChain.doFilter(request, response);
+
+        } catch (Exception e) {
+            log.error("Authentication failed", e);
+            unauthorized(response, "Authentication error");
+        }
     }
 
-    /**
-     * Extracts token information by calling Google's token info endpoint.
-     *
-     * @param accessToken the access token to validate
-     * @return the Tokeninfo object if valid, otherwise null
-     * @throws IOException if the token info endpoint call fails
-     */
-    private Tokeninfo extractTokenInfo(String accessToken) throws IOException {
+    private Tokeninfo extractTokenInfo(String accessToken) {
         try {
             Oauth2 oauth2 = new Oauth2.Builder(httpTransport, jsonFactory, null)
                     .setApplicationName(appName)
@@ -132,30 +118,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             return oauth2.tokeninfo().setAccessToken(accessToken).execute();
         } catch (IOException e) {
+            log.debug("Failed to extract token info - token might be expired or invalid: {}", e.getMessage());
             return null;
         }
     }
 
-    /**
-     * Uses a refresh token to obtain a new access token from Google's token endpoint.
-     *
-     * @param refreshToken the refresh token
-     * @return a new access token string, or null if the request fails
-     */
     private String refreshAccessToken(String refreshToken) {
         try {
-            GoogleRefreshTokenRequest refreshTokenRequest = new GoogleRefreshTokenRequest(
-                    httpTransport,
-                    jsonFactory,
-                    refreshToken,
-                    clientId,
-                    clientSecret
-            );
-
-            GoogleTokenResponse tokenResponse = refreshTokenRequest.execute();
-            return tokenResponse.getAccessToken();
+            GoogleRefreshTokenRequest request = new GoogleRefreshTokenRequest(httpTransport, jsonFactory, refreshToken, clientId, clientSecret);
+            GoogleTokenResponse response = request.execute();
+            return response.getAccessToken();
         } catch (IOException e) {
+            log.error("Failed to refresh access token", e);
             return null;
         }
+    }
+
+    private void unauthorized(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.getWriter().write(message);
+        response.getWriter().flush();
     }
 }

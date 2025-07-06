@@ -5,7 +5,7 @@ import java.io.Serial;
 /**
  * Exception thrown when there is a connection failure with the Ethereum node.
  */
-public class EthereumConnectionException extends Exception {
+public class EthereumConnectionException extends RuntimeException {
 	@Serial
 	private static final long serialVersionUID = -8308994506186586639L;
 

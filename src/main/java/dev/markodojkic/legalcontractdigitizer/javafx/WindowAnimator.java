@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
+import java.util.Objects;
 
 @Component
 @Slf4j
@@ -25,7 +25,7 @@ public class WindowAnimator {
         windowRoot.setVisible(true); // needed if just added to scene
         Platform.runLater(() -> {
             String suffix = isSpecialWindow ? "_special.wav" : "_classical.wav";
-            new AudioClip(new File("src/main/resources/static/audio/window_opening" + suffix).toURI().toString()).play();
+            new AudioClip(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_opening" + suffix)).toExternalForm()).play();
             double targetHeight = titleBar.getHeight() + contentArea.getHeight() + statusBar.getHeight();
             double titleBarHeight = titleBar.getHeight() > 0 ? titleBar.getHeight() : 40;
             double statusBarHeight = statusBar.getHeight() > 0 ? statusBar.getHeight() : 30;
@@ -71,7 +71,7 @@ public class WindowAnimator {
     }
 
     public static void closeWindow(Pane windowPane, HBox titleBar, HBox statusBar, StackPane contentArea) {
-        new AudioClip(new File("src/main/resources/static/audio/window_closing.wav").toURI().toString()).play();
+        new AudioClip(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_closing.wav")).toExternalForm()).play();
         double currentHeight = windowPane.getHeight();
         double titleBarHeight = titleBar.getHeight() > 0 ? titleBar.getHeight() : 40;
         double statusBarHeight = statusBar.getHeight() > 0 ? statusBar.getHeight() : 30;

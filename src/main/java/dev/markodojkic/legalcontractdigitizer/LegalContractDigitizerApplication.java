@@ -10,9 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @EnableRetry
 public class LegalContractDigitizerApplication {
-
 	public static void main(String[] args) {
 		Application.launch(LCDJavaFxUIApplication.class, args);
 	}
-
 }

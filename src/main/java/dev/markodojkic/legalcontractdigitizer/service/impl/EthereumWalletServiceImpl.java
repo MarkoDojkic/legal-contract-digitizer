@@ -14,11 +14,11 @@ import org.web3j.crypto.Credentials;
 import org.web3j.crypto.WalletUtils;
 
 import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -28,7 +28,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 @RequiredArgsConstructor
 public class EthereumWalletServiceImpl implements IEthereumWalletService {
 
-	private static final String KEYSTORE_DIR = "ethWallets";
+	private static final String KEYSTORE_DIR = "ethWallets", WALLETS = "wallets";
 	// Regex pattern to match files like "MyWallet-0x1234567890abcdef1234567890abcdef12345678"
 	private static final Pattern WALLET_FILENAME_PATTERN = Pattern.compile("([a-zA-Z0-9\\-_]+)-([0-9a-fA-F]{40}).json");
 
@@ -44,7 +44,7 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 	public WalletInfo createWallet(String label) {
 		try {
 			File dir = new File(KEYSTORE_DIR);
-			if(!dir.exists()) dir.mkdirs();
+			if (!dir.exists() && !dir.mkdirs()) throw new IOException("Failed to create keystore directory: " + dir.getAbsolutePath());
 
 			// Generate wallet file and load credentials
 			File walletFile = new File(dir, WalletUtils.generateNewWalletFile(walletKeystorePassword, dir, false));
@@ -52,7 +52,7 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 
 			// Rename file to the format "label-address.json"
 			File renamedFile = new File(dir, label + "-" + credentials.getAddress() + ".json");
-			if (!walletFile.renameTo(renamedFile)) throw new WalletCreationException("Failed to rename wallet file to the correct format.");
+			if (!renamedFile.toPath().normalize().startsWith(dir.toPath().normalize()) || !walletFile.renameTo(renamedFile)) throw new WalletCreationException("Failed to rename wallet file to the correct format.");
 
 			WalletInfo wallet = new WalletInfo(label, "0x" + credentials.getAddress(), ethereumService.getBalance(credentials.getAddress()), renamedFile.getName());
 			updateCache(wallet);
@@ -67,12 +67,12 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 	public List<WalletInfo> listWallets() {
 		// If directory content has changed, reload wallets; otherwise, use cache
 		if (isDirectoryModified()) loadWalletsFromDirectory();
-		return walletsCache.getIfPresent("wallets");
+		return walletsCache.getIfPresent(WALLETS);
 	}
 
 	@Override
 	public Credentials loadCredentials(String address) throws WalletNotFoundException {
-		List<WalletInfo> wallets = walletsCache.getIfPresent("wallets");
+		List<WalletInfo> wallets = walletsCache.getIfPresent(WALLETS);
 		if (wallets == null) throw new WalletNotFoundException("Requested credentials not found");
 		return wallets.stream()
 				.filter(wallet -> wallet.address().equalsIgnoreCase(address))
@@ -107,8 +107,7 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 		List<String> currentFilenames = Arrays.stream(Objects.requireNonNull(dir.listFiles()))
 				.filter(file -> file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches())
 				.map(File::getName)
-				.sorted()
-				.collect(Collectors.toList());
+				.sorted().toList();
 
 		return String.join(",", currentFilenames);
 	}
@@ -134,16 +133,15 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 					}
 					return null;
 				})
-				.filter(Objects::nonNull)
-				.collect(Collectors.toList());
+				.filter(Objects::nonNull).toList();
 
-		walletsCache.put("wallets", loadedWallets);
+		walletsCache.put(WALLETS, loadedWallets);
 	}
 
 	private void updateCache(WalletInfo wallet) {
-		List<WalletInfo> wallets = walletsCache.getIfPresent("wallets");
+		List<WalletInfo> wallets = walletsCache.getIfPresent(WALLETS);
 		if (wallets == null) wallets = new ArrayList<>();
 		wallets.add(wallet);
-		walletsCache.put("wallets", wallets);
+		walletsCache.put(WALLETS, wallets);
 	}
 }

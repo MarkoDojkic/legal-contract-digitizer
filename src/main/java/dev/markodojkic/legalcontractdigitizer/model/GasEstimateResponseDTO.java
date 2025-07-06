@@ -9,8 +9,4 @@ import java.math.BigInteger;
  * @param gasPriceWei  Gas price in Wei.
  * @param gasLimit     Gas limit estimate with safety margin (multiplied by 2).
  */
-public record GasEstimateResponseDTO(
-        String message,
-        BigInteger gasPriceWei,
-        BigInteger gasLimit
-) {}
+public record GasEstimateResponseDTO(String message, BigInteger gasPriceWei, BigInteger gasLimit) {}

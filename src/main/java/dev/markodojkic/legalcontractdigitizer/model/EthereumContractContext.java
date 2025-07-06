@@ -6,7 +6,4 @@ package dev.markodojkic.legalcontractdigitizer.model;
  * @param contractBinary     Compiled contract bytecode.
  * @param encodedConstructor ABI-encoded constructor parameters.
  */
-public record EthereumContractContext(
-        String contractBinary,
-        String encodedConstructor
-) {}
+public record EthereumContractContext(String contractBinary, String encodedConstructor) {}

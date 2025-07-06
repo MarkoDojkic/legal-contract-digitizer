@@ -1,9 +1,12 @@
 package dev.markodojkic.legalcontractdigitizer.javafx.controller;
 
+import com.google.common.reflect.TypeToken;
 import dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication;
+import dev.markodojkic.legalcontractdigitizer.model.ContractStatus;
 import dev.markodojkic.legalcontractdigitizer.model.DigitalizedContract;
 import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
+import dev.markodojkic.legalcontractdigitizer.util.Either;
 import dev.markodojkic.legalcontractdigitizer.util.HttpClientUtil;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -33,27 +36,19 @@ import static dev.markodojkic.legalcontractdigitizer.model.ContractStatus.*;
 @Component
 @Slf4j
 public class MainController extends WindowAwareController {
-    @FXML private Label nameLabel;
-    @FXML private Label emailLabel;
-    @FXML private Button uploadBtn;
-    @FXML private Button refreshBtn;
-    @FXML private Button logoutBtn;
-    @FXML private Button walletsManagerBtn;
+    @FXML private Label nameLabel, emailLabel;
+    @FXML private Button uploadBtn, refreshBtn, logoutBtn, walletsManagerBtn;
 
     @FXML private TableView<DigitalizedContract> contractsTable;
-    @FXML private TableColumn<DigitalizedContract, String> idCol;
+    @FXML private TableColumn<DigitalizedContract, String> idCol, statusCol;
     @FXML private TableColumn<DigitalizedContract, Void> actionCol;
-    @FXML private TableColumn<DigitalizedContract, String> statusCol;
 
-    private final Preferences prefs = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
+    private final Preferences preferences = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
     private final HttpClientUtil httpClientUtil;
     private final String baseUrl;
 
     @Autowired
-    public MainController(@Value("${server.port}") Integer serverPort,
-                          WindowLauncher windowLauncher,
-                          ApplicationContext applicationContext,
-                          HttpClientUtil httpClientUtil){
+    public MainController(@Value("${server.port}") Integer serverPort, WindowLauncher windowLauncher, ApplicationContext applicationContext, HttpClientUtil httpClientUtil){
         super(windowLauncher, applicationContext);
         this.baseUrl = String.format("http://localhost:%s/api/v1/contracts", serverPort);
         this.httpClientUtil = httpClientUtil;
@@ -61,8 +56,8 @@ public class MainController extends WindowAwareController {
 
     @FXML
     public void initialize() {
-        nameLabel.setText("Logged in as: " + prefs.get("name", "N/A"));
-        emailLabel.setText("Email:" + prefs.get("email", "N/A"));
+        nameLabel.setText("Logged in as: " + preferences.get("name", "N/A"));
+        emailLabel.setText("Email:" + preferences.get("email", "N/A"));
 
         setupTable();
 
@@ -80,17 +75,17 @@ public class MainController extends WindowAwareController {
                 else if (response.getStatusCode().is2xxSuccessful()) refreshContracts();
                 else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
             } catch (Exception e) {
-                log.error(e.getLocalizedMessage());
+                log.error("Cannot upload new contract", e);
                 windowLauncher.launchErrorSpecialWindow("Error occurred while uploading new contract:\n" + e.getLocalizedMessage());
             }
         }));
-        walletsManagerBtn.setOnAction(e -> openWalletsManager());
-        refreshBtn.setOnAction(e -> refreshContracts());
+        walletsManagerBtn.setOnAction(_ -> openWalletsManager());
+        refreshBtn.setOnAction(_ -> refreshContracts());
         logoutBtn.setOnAction(_ -> {
             try {
-               prefs.clear();
+               preferences.clear();
             } catch (BackingStoreException e) {
-                log.error(e.getLocalizedMessage());
+                log.error("Cannot clear user data", e);
                 windowLauncher.launchWarnSpecialWindow("Error occurred while clearing user data:\n" + e.getLocalizedMessage());
             }
 
@@ -121,10 +116,10 @@ public class MainController extends WindowAwareController {
         idCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().id()));
         statusCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().status().toString()));
 
-        actionCol.setCellFactory(col -> new TableCell<DigitalizedContract, Void>() {
+        actionCol.setCellFactory(_ -> new TableCell<>() {
             private final Button nextStepBtn = new Button();
             private final Button viewClausesBtn = new Button("View Clauses ⚖️");
-            private final Button viewSolidityBtn = new Button("View Solidity 📃");
+            private final Button viewEditSolidityBtn = new Button("View/Edit Solidity 📃");
             private final Button deleteBtn = new Button("Delete 🗑️");
 
             private final HBox container = new HBox(8);
@@ -132,7 +127,7 @@ public class MainController extends WindowAwareController {
             {
                 nextStepBtn.getStyleClass().add("btn-action");
                 viewClausesBtn.getStyleClass().add("btn-info");
-                viewSolidityBtn.getStyleClass().add("btn-info");
+                viewEditSolidityBtn.getStyleClass().add("btn-info");
                 deleteBtn.getStyleClass().add("btn-danger");
                 container.setAlignment(Pos.CENTER);
             }
@@ -148,23 +143,23 @@ public class MainController extends WindowAwareController {
 
                 container.getChildren().clear();
 
-                nextStepBtn.setOnAction(e -> performNextStep(getTableView().getItems().get(getIndex())));
+                nextStepBtn.setOnAction(_ -> performNextStep(getTableView().getItems().get(getIndex())));
 
-                viewClausesBtn.setOnAction(e -> fetchAndShowClauses(getTableView().getItems().get(getIndex())));
+                viewClausesBtn.setOnAction(_ -> fetchAndShowClauses(getTableView().getItems().get(getIndex())));
 
-                viewSolidityBtn.setOnAction(e -> fetchAndShowSolidity(getTableView().getItems().get(getIndex())));
+                viewEditSolidityBtn.setOnAction(_ -> fetchAndShowSolidity(getTableView().getItems().get(getIndex())));
 
                 deleteBtn.setOnAction(_ -> {
                     try {
-                        ResponseEntity<String> response = httpClientUtil.delete(baseUrl + "/" + getTableView().getItems().get(getIndex()).id(), null, Void.class);
+                        ResponseEntity<String> response = httpClientUtil.delete(baseUrl + "/" + getTableView().getItems().get(getIndex()).id(), null, String.class);
                         if (response.getStatusCode().is2xxSuccessful()) {
                             contractsTable.getItems().remove(getTableView().getItems().get(getIndex()));
                             refreshContracts();
-                        } else if(response.getStatusCode() == HttpStatus.CONFLICT)
+                        } else if (response.getStatusCode() == HttpStatus.CONFLICT)
                             windowLauncher.launchWarnSpecialWindow(response.getBody());
                         else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
                     } catch (Exception e) {
-                        log.error(e.getLocalizedMessage());
+                        log.error("Cannot delete contract", e);
                         windowLauncher.launchErrorSpecialWindow("Deletion failed due to exception:\n" + e.getLocalizedMessage());
                     }
                 });
@@ -188,9 +183,10 @@ public class MainController extends WindowAwareController {
                          TERMINATED -> {
                         nextStepBtn.setText("Ethereum Actions 🕸️");
                         nextStepBtn.getStyleClass().add("btn-action");
-                        nextStepBtn.setOnAction(e -> {
+                        nextStepBtn.setOnAction(_ -> {
                             EthereumActionsController controller = applicationContext.getBean(EthereumActionsController.class);
                             controller.setContract(getTableView().getItems().get(getIndex()));
+                            controller.setMainRefreshBtn(refreshBtn);
                             windowLauncher.launchWindow(
                                     "Ethereum Actions",
                                     500,
@@ -204,33 +200,36 @@ public class MainController extends WindowAwareController {
                     }
                 }
 
-                if (getTableView().getItems().get(getIndex()).status().compareTo(CLAUSES_EXTRACTED) >= 0) container.getChildren().add(viewClausesBtn);
-                if (getTableView().getItems().get(getIndex()).status().compareTo(SOLIDITY_PREPARED) >= 0) container.getChildren().add(viewSolidityBtn);
-                if (getTableView().getItems().get(getIndex()).status().compareTo(CONFIRMED) < 0) container.getChildren().add(deleteBtn);
+                if (getTableView().getItems().get(getIndex()).status().compareTo(CLAUSES_EXTRACTED) >= 0)
+                    container.getChildren().add(viewClausesBtn);
+                if (getTableView().getItems().get(getIndex()).status().compareTo(SOLIDITY_PREPARED) >= 0)
+                    container.getChildren().add(viewEditSolidityBtn);
+                if (getTableView().getItems().get(getIndex()).status().compareTo(CONFIRMED) < 0)
+                    container.getChildren().add(deleteBtn);
 
                 setGraphic(container);
             }
         });
 
-        contractsTable.setRowFactory(tv -> new TableRow<DigitalizedContract>() {
+        contractsTable.setRowFactory(_ -> new TableRow<>() {
             @Override
             protected void updateItem(DigitalizedContract item, boolean empty) {
                 super.updateItem(item, empty);
                 getStyleClass().removeAll(Arrays.stream(values()).map(Enum::name).toList());
-                if(!empty && item != null && item.status() != null) getStyleClass().add(item.status().toString());
+                if (!empty && item != null && item.status() != null) getStyleClass().add(item.status().toString());
             }
         });
     }
 
     private void refreshContracts() {
         try {
-            ResponseEntity<DigitalizedContract[]> response = httpClientUtil.get(baseUrl + "/list", null, DigitalizedContract[].class);
+            ResponseEntity<Either<List<DigitalizedContract>, String>> response = httpClientUtil.get(baseUrl + "/list", null, new TypeToken<Either<List<DigitalizedContract>, String>>(){}.getType());
 
             if(response.getBody() == null) throw new NoHttpResponseException("Listing user contracts failed with no response");
-            else if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> contractsTable.getItems().setAll(response.getBody()));
-            else throw new HttpResponseException(response.getStatusCode().value(), "Failed to load contracts");
+            else if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> contractsTable.getItems().setAll(response.getBody().left()));
+            else throw new HttpResponseException(response.getStatusCode().value(), response.getBody().right());
         } catch (Exception e) {
-            log.error(e.getLocalizedMessage());
+            log.error("Cannot retrieve list of contracts", e);
             windowLauncher.launchErrorSpecialWindow("Error occurred while reloading contracts:\n" + e.getLocalizedMessage());
         }
     }
@@ -262,7 +261,7 @@ public class MainController extends WindowAwareController {
                 else windowLauncher.launchSuccessSpecialWindow(response.getBody());
             } else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
         } catch (Exception e) {
-            log.error(e.getLocalizedMessage());
+            log.error("Cannot invoke action upon uploaded contract", e);
             windowLauncher.launchErrorSpecialWindow("Error occurred while performing action upon contract:\n" + e.getLocalizedMessage());
         }
     }
@@ -287,22 +286,23 @@ public class MainController extends WindowAwareController {
         }
     }
 
-
     private void fetchAndShowSolidity(DigitalizedContract contract) {
         String soliditySource = contract.soliditySource();
         if (soliditySource == null) {
             log.warn("Solidity source not available for contract {}", contract.id());
             windowLauncher.launchWarnSpecialWindow("No solidity source available for contract: " + contract.id());
         } else {
-            WindowPreviewController controller = applicationContext.getBean(WindowPreviewController.class);
+            SolidityViewController controller = applicationContext.getBean(SolidityViewController.class);
             controller.setText(soliditySource);
+            controller.setMainRefreshBtn(refreshBtn);
+            controller.setContractId(contract.status().equals(ContractStatus.SOLIDITY_PREPARED) ? contract.id() : null);
 
             windowLauncher.launchWindow(
                     "Generated solidity code",
                     800,
                     800,
-                    "/layout/window_preview.fxml",
-                    Objects.requireNonNull(getClass().getResource("/static/style/window_preview.css")).toExternalForm(),
+                    "/layout/solidity_view.fxml",
+                    Objects.requireNonNull(getClass().getResource("/static/style/solidity_view.css")).toExternalForm(),
                     controller
             );
         }

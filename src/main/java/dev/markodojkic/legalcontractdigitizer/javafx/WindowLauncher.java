@@ -4,7 +4,6 @@ import dev.markodojkic.legalcontractdigitizer.model.SpecialBackgroundType;
 import dev.markodojkic.legalcontractdigitizer.model.WebViewWindow;
 import dev.markodojkic.legalcontractdigitizer.javafx.controller.JavaFXWindowController;
 import dev.markodojkic.legalcontractdigitizer.javafx.controller.WindowAwareController;
-import javafx.animation.PauseTransition;
 import javafx.animation.ScaleTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -24,7 +23,6 @@ import javafx.stage.FileChooser;
 import javafx.util.Duration;
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -33,25 +31,13 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 @Component
+@Setter
+@Getter
 public class WindowLauncher {
 
-    @Setter
-    @Getter
     private Pane rootPane;
 
-    private final ApplicationContext applicationContext;
-
-    public WindowLauncher(ApplicationContext applicationContext) {
-        this.applicationContext = applicationContext;
-    }
-
-    public <T extends WindowAwareController> T launchWindow(
-            String windowTitle,
-            double width,
-            double height,
-            String contentFxml,
-            String contentCSS,
-            T controllerInstance) {
+    public <T extends WindowAwareController> T launchWindow(String windowTitle, double width, double height, String contentFxml, String contentCSS, T controllerInstance) {
 
         JavaFXWindowController windowController = loadWindowFrame(windowTitle, width, height, false);
         Pane windowRoot = windowController.getWindowRoot();
@@ -64,9 +50,7 @@ public class WindowLauncher {
             controllerInstance.setWindowController(windowController);
             windowController.getContentArea().getChildren().setAll(contentRoot);
 
-            if (contentCSS != null) {
-                windowRoot.getStylesheets().add(contentCSS);
-            }
+            if (contentCSS != null) windowRoot.getStylesheets().add(contentCSS);
 
             return controllerInstance;
         } catch (IOException e) {
@@ -76,9 +60,11 @@ public class WindowLauncher {
 
     public WebViewWindow launchWebViewWindow(String title, double width, double height, String url) {
         JavaFXWindowController controller = loadWindowFrame(title, width, height, false);
+
         WebView webView = new WebView();
         webView.getEngine().load(url);
         controller.getContentArea().getChildren().setAll(webView);
+
         return new WebViewWindow(rootPane, controller, webView.getEngine());
     }
 
@@ -90,12 +76,12 @@ public class WindowLauncher {
         VBox box = new VBox(10, selectButton, fileLabel);
         box.setAlignment(Pos.CENTER);
 
-        selectButton.setOnAction(e -> {
+        selectButton.setOnAction(_ -> {
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Select a file");
             File file = fileChooser.showOpenDialog(null);
             if (file != null) {
-                fileLabel.setText(file.getName());
+                fileLabel.setText("Uploading: " + file.getName());
                 onFilePicked.accept(file);
             }
         });
@@ -156,7 +142,7 @@ public class WindowLauncher {
         pulse.setFromY(0.8);
         pulse.setToX(1.3);
         pulse.setToY(1.3);
-        pulse.setCycleCount(5);
+        pulse.setCycleCount(10);
         pulse.setAutoReverse(true);
 
         Label animatedText = new Label(text);
@@ -167,7 +153,7 @@ public class WindowLauncher {
         animatedText.setVisible(false);
         animatedText.setStyle("-fx-stroke: white; -fx-stroke-width: 1; -fx-effect: dropshadow( gaussian , black , 2 , 0.5 , 0 , 0 );");
 
-        pulse.setOnFinished(e -> {
+        pulse.setOnFinished(_ -> {
             centerPane.getChildren().clear();
             centerPane.getChildren().add(animatedText);
             animatedText.setVisible(true);
@@ -180,16 +166,6 @@ public class WindowLauncher {
 
         // Shift to right quarter after centering
         shiftToRightQuarter(controller.getWindowRoot(), width);
-
-        //Autoclose if warning or success
-        if(specialBackgroundType == SpecialBackgroundType.WARN || specialBackgroundType == SpecialBackgroundType.SUCCESS) {
-            animatedText.setText(animatedText.getText() + "\nThis window will be closed automatically after 10 seconds!");
-            Platform.runLater(() -> {
-                PauseTransition delay = new PauseTransition(Duration.seconds(10));
-                delay.setOnFinished(event -> controller.getCloseButton().fire());
-                delay.play();
-            });
-        }
     }
 
     private JavaFXWindowController loadWindowFrame(String title, double width, double height, boolean isSpecialWindow) {
@@ -210,14 +186,11 @@ public class WindowLauncher {
             rootPane.getChildren().add(windowRoot);
             centerWindow(windowRoot, width, height);
 
-            Platform.runLater(() ->
-                    WindowAnimator.openWindow(rootPane, controller.getTitleBar(), controller.getStatusBar(), controller.getContentArea(), isSpecialWindow)
-            );
+            Platform.runLater(() -> WindowAnimator.openWindow(rootPane, controller.getTitleBar(), controller.getStatusBar(), controller.getContentArea(), isSpecialWindow));
 
             return controller;
-
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load window.fxml", e);
+            throw new IllegalStateException("Failed to load window.fxml", e);
         }
     }
 
@@ -249,8 +222,8 @@ public class WindowLauncher {
             double newY = e.getSceneY() + dragDelta.y;
 
             if (rootPane != null) {
-                newX = Math.min(Math.max(newX, 0), rootPane.getWidth() - window.prefWidth(-1));
-                newY = Math.min(Math.max(newY, 0), rootPane.getHeight() - window.prefHeight(-1));
+                newX = Math.clamp(newX, 0, rootPane.getWidth() - window.prefWidth(-1));
+                newY = Math.clamp(newY, 0, rootPane.getHeight() - window.prefHeight(-1));
             }
 
             window.setLayoutX(newX);

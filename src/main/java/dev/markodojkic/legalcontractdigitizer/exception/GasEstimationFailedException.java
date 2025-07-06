@@ -5,7 +5,7 @@ import java.io.Serial;
 /**
  * Exception thrown when gas estimation for a transaction fails.
  */
-public class GasEstimationFailedException extends Exception {
+public class GasEstimationFailedException extends RuntimeException {
 	@Serial
 	private static final long serialVersionUID = -17817667755983010L;
 

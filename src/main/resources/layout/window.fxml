@@ -7,11 +7,15 @@
     <top>
         <HBox fx:id="titleBar" styleClass="title-bar" spacing="6" minHeight="26" maxHeight="26">
             <padding>
-                <Insets top="8" right="8" bottom="2" left="8"/>
+                <Insets top="6" right="8" bottom="6" left="8"/>
             </padding>
             <Button fx:id="minimizeBtn" styleClass="minimize-btn" minWidth="82" maxWidth="82" minHeight="14" maxHeight="14"/>
             <Button fx:id="shrinkBtn" styleClass="shrink-btn" minWidth="81" maxWidth="81" minHeight="14" maxHeight="14"/>
-            <Label fx:id="titleLabel" HBox.hgrow="ALWAYS" />
+            <Label fx:id="titleLabel" HBox.hgrow="ALWAYS">
+                <padding>
+                    <Insets top="-2"/>
+                </padding>
+            </Label>
             <Region HBox.hgrow="ALWAYS"/>
             <Button fx:id="closeButton" styleClass="close-btn" minWidth="31" maxWidth="31" minHeight="14" maxHeight="14"/>
         </HBox>

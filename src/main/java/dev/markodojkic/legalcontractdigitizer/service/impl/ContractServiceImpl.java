@@ -27,10 +27,8 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 @Service
@@ -71,6 +69,7 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public List<DigitalizedContract> listContractsForUser() {
 		List<DigitalizedContract> contracts = new ArrayList<>();
 		try {
@@ -112,11 +111,38 @@ public class ContractServiceImpl implements IContractService {
 				));
 			}
 		} catch (Exception e) {
+			Thread.currentThread().interrupt();
 			log.error("Failed to list contracts for userId={}", AuthSession.getCurrentUserId(), e);
-			throw new ContractReadException("Failed to list contracts");
+			throw new ContractReadException("Failed to list contracts:\n" + e.getLocalizedMessage());
 		}
 		return contracts;
 	}
+
+	@Override
+	public void editSolidity(String contractId, String newSoliditySource) throws ContractNotFoundException, UnauthorizedAccessException {
+		QuerySnapshot querySnapshot;
+		try {
+			querySnapshot = firestore.collection(CONTRACTS)
+					.whereEqualTo("id", contractId)
+					.limit(1)
+					.get()
+					.get();
+		} catch (Exception e) {
+			Thread.currentThread().interrupt();
+			log.error("Failed to retrieve contract with ID: {}", contractId, e);
+			throw new ContractNotFoundException("Could not find contract with ID: " + contractId);
+		}
+
+		if (querySnapshot.isEmpty()) throw new ContractNotFoundException("Contract not found with ID: " + contractId);
+
+		DocumentSnapshot document = querySnapshot.getDocuments().getFirst();
+
+		verifyOwnership(document);
+
+		document.getReference().update(SOLIDITY_SOURCE, newSoliditySource);
+		log.debug("Updated Solidity code for contract ID: {}", contractId);
+	}
+
 
 	@Override
 	public void updateContractStatus(String deploymentAddress, ContractStatus newStatus) throws ContractNotFoundException, UnauthorizedAccessException {
@@ -128,6 +154,7 @@ public class ContractServiceImpl implements IContractService {
 					.get()
 					.get();
 		} catch (Exception e) {
+			Thread.currentThread().interrupt();
 			log.error("No contract found with deployed address: {}", deploymentAddress, e);
 			throw new ContractNotFoundException("No contract found with deployed address: " + deploymentAddress);
 		}
@@ -155,6 +182,7 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public DigitalizedContract getContract(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException {
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, firestore.collection(CONTRACTS).document(contractId));
 
@@ -172,6 +200,7 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public List<String> extractClauses(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, ClausesExtractionException {
 		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, firestore.collection(CONTRACTS).document(contractId));
@@ -189,16 +218,10 @@ public class ContractServiceImpl implements IContractService {
 		}
 
 		log.debug("Extracting clauses for contract ID: {}", contractId);
-		List<String> contractClauses;
-		try {
-			contractClauses = aiService.extractClauses(contractText);
-		} catch (Exception e) {
-			log.error("Failed to extract clauses for contract ID: {}", contractId, e);
-			throw new ClausesExtractionException("AI service failed to extract clauses from text:\n" + e.getLocalizedMessage());
-		}
+		List<String> contractClauses = aiService.extractClauses(contractText);
 
 		if (contractClauses == null || contractClauses.isEmpty()) {
-			log.debug("No clauses extracted for contract ID: {}", contractId);
+			log.debug("No clauses were extracted for contract ID: {}", contractId);
 			throw new ClausesExtractionException("No clauses extracted");
 		}
 
@@ -247,8 +270,7 @@ public class ContractServiceImpl implements IContractService {
 		));
 		log.debug("Successfully updated document with Solidity source for contract ID: {}", contractId);
 
-		// Compile and update document with the binary and ABI
-		return compileAndUpdateDocument(docRef, snapshot, soliditySource);
+		throw new CompilationException("Solidity code is prepared, you can view, edit or deploy");
 	}
 
 	@Override
@@ -306,6 +328,7 @@ public class ContractServiceImpl implements IContractService {
 			verifyOwnership(snapshot);
 			return snapshot;
 		} catch (InterruptedException | ExecutionException e) {
+			Thread.currentThread().interrupt();
 			log.error("Error retrieving contract {}", contractId, e);
 			throw new ContractReadException("Error retrieving contract: " + contractId);
 		}
@@ -328,28 +351,38 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	private CompilationResult compile(String soliditySource) throws CompilationException {
+		Path secureDir = null;
 		Path sourceFile = null;
+		Process solidityExe = null;
 		try {
-			sourceFile = Files.createTempFile("contract", ".sol");
+			// Create secure temp directory in user home (not in world-writable temp)
+			secureDir = Files.createTempDirectory(Paths.get(System.getProperty("user.home")), "secure-solidity-");
 
+			sourceFile = Files.createTempFile(secureDir, "contract", ".sol");
 			Files.writeString(sourceFile, soliditySource);
 
-			Process process = new ProcessBuilder(solidityCompilerExecutable, "--combined-json", "abi,bin", sourceFile.toAbsolutePath().toString()).start();
+			solidityExe = new ProcessBuilder(solidityCompilerExecutable,
+					"--combined-json", "abi,bin",
+					sourceFile.toAbsolutePath().toString()
+			).start();
 
-			if (process.waitFor() != 0) throw new CompilationException(new String(process.getErrorStream().readAllBytes()));
+			if (solidityExe.waitFor() != 0) throw new CompilationException(new String(solidityExe.getErrorStream().readAllBytes()));
 
-			JsonNode contractsNode = objectMapper.readTree(new String(process.getInputStream().readAllBytes())).path(CONTRACTS);
+			JsonNode contractsNode = objectMapper.readTree(new String(solidityExe.getInputStream().readAllBytes())).path(CONTRACTS);
 			if (contractsNode.isEmpty()) throw new CompilationException("No smart contracts found in compilation output");
 
 			JsonNode contractNode = contractsNode.get(contractsNode.fieldNames().next());
 
 			return new CompilationResult(contractNode.get("bin").asText(), contractNode.get("abi").toString());
-
-		} catch (Exception e){
-			if(e instanceof InterruptedException) Thread.currentThread().interrupt();
+		} catch (Exception e) {
+			Thread.currentThread().interrupt();
 			throw new CompilationException(e.getLocalizedMessage());
 		} finally {
-			if(sourceFile != null) try { Files.deleteIfExists(sourceFile); } catch (IOException _) {}
+			try {
+				if (sourceFile != null) Files.deleteIfExists(sourceFile);
+				if (secureDir != null) Files.deleteIfExists(secureDir);
+				if (solidityExe != null) solidityExe.destroy();
+			} catch (IOException ignore) { /* SonarQube: ignoring exceptions here is safe */ }
 		}
 	}
 }

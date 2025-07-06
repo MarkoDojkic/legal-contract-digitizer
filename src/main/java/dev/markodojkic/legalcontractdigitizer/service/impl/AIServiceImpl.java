@@ -2,9 +2,12 @@ package dev.markodojkic.legalcontractdigitizer.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.markodojkic.legalcontractdigitizer.exception.ClausesExtractionException;
 import dev.markodojkic.legalcontractdigitizer.service.IAIService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hc.client5.http.impl.classic.RequestFailedException;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -17,15 +20,13 @@ import java.util.Map;
 @Slf4j
 public class AIServiceImpl implements IAIService {
 
+	private static final String OPENAI_API_URL = "https://api.openai.com/v1/chat/completions", MODEL = "gpt-4o", CONTENT = "content";
+	private static final int RETRY_LIMIT = 3;
 	private final WebClient openAiWebClient;
 	private final ObjectMapper objectMapper;
 
-	private static final String OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-	private static final String MODEL = "gpt-4o"; // <- Upgrade to latest model
-	private static final int RETRY_LIMIT = 3;
-
 	@Override
-	public List<String> extractClauses(String contractText) throws Exception {
+	public List<String> extractClauses(String contractText) throws ClausesExtractionException {
 		String prompt = """
                 Extract all legal clauses from this legal contract text.
                 Return the result as a JSON array of clauses (strings).
@@ -40,12 +41,12 @@ public class AIServiceImpl implements IAIService {
 			return parseExtractedClauses(content);
 		} catch (Exception e) {
 			log.error("Failed to extract clauses from contract", e);
-			throw e;
+			throw new ClausesExtractionException("AI service failed to extract clauses from text:\n" + e.getLocalizedMessage());
 		}
 	}
 
 	@Override
-	public String generateSolidityContract(List<String> clauses) throws Exception {
+	public String generateSolidityContract(List<String> clauses) throws WebClientResponseException, RequestFailedException, ConnectionRequestTimeoutException {
 		StringBuilder promptBuilder = new StringBuilder();
 		promptBuilder.append("Generate a Solidity smart contract based on the following clauses:\n\n");
 
@@ -79,16 +80,10 @@ public class AIServiceImpl implements IAIService {
 
 		promptBuilder.append("\nReturn ONLY the complete, production-ready solidity code. Inline all dependencies (e.g. OpenZeppelin's Ownable, UUPSUpgradeable, ReentrancyGuard) so that the contract is fully self-contained and has no imports. Do not include markdown, explanations, or code formatting symbols.\n");
 
-		try {
-			String rawSolidity = sendChatRequest(promptBuilder.toString(), false);
-			return sanitizeSolidityCode(rawSolidity);
-		} catch (Exception e) {
-			log.error("Failed to generate solidity code", e);
-			throw e;
-		}
+		return sanitizeSolidityCode( sendChatRequest(promptBuilder.toString(), false));
 	}
 
-	private String sendChatRequest(String prompt, boolean isExtraction) throws RuntimeException {
+	private String sendChatRequest(String prompt, boolean isExtraction) throws WebClientResponseException, RequestFailedException, ConnectionRequestTimeoutException {
 		for (int i = 0; i < RETRY_LIMIT; i++) {
 			try {
 				String rawJson = openAiWebClient.post()
@@ -98,10 +93,10 @@ public class AIServiceImpl implements IAIService {
 								"temperature", 0.68,
 								"max_tokens", 2048,
 								"messages", List.of(
-										Map.of("role", "system", "content",
+										Map.of("role", "system", CONTENT,
 												isExtraction ? "You are a contract analyst. Extract and return only legal clauses." :
 														"You are an expert Solidity smart contract generator. Output only production-ready code."),
-										Map.of("role", "user", "content", prompt)
+										Map.of("role", "user", CONTENT, prompt)
 								)
 						))
 						.retrieve()
@@ -112,7 +107,7 @@ public class AIServiceImpl implements IAIService {
 
 				JsonNode root = objectMapper.readTree(rawJson);
 				JsonNode choices = root.path("choices");
-				if (choices.isArray() && !choices.isEmpty()) return choices.get(0).path("message").path("content").asText();
+				if (choices.isArray() && !choices.isEmpty()) return choices.get(0).path("message").path(CONTENT).asText();
 				else throw new IllegalStateException("Unexpected response format.");
 			} catch (WebClientResponseException e) {
 				log.error("OpenAI API error: HTTP {}, body: {}", e.getStatusCode().value(), e.getResponseBodyAsString());
@@ -130,11 +125,11 @@ public class AIServiceImpl implements IAIService {
 
 			} catch (Exception e) {
 				log.error("General error while calling OpenAI API", e);
-				throw new RuntimeException("OpenAI request failed", e);
+				throw new RequestFailedException("OpenAI request failed", e);
 			}
 		}
 
-		throw new RuntimeException("Failed to get valid OpenAI response after " + RETRY_LIMIT + " retries.");
+		throw new ConnectionRequestTimeoutException("Failed to get valid OpenAI response after " + RETRY_LIMIT + " retries.");
 	}
 
 	private List<String> parseExtractedClauses(String jsonArrayString) throws Exception {

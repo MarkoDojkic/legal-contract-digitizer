@@ -30,8 +30,7 @@ public interface IContractService {
 	 * @throws ContractNotFoundException if the contract is not found
 	 * @throws UnauthorizedAccessException if the caller is unauthorized to update the contract
 	 */
-	void updateContractStatus(String deploymentAddress, ContractStatus newStatus)
-			throws ContractNotFoundException, UnauthorizedAccessException;
+	void updateContractStatus(String deploymentAddress, ContractStatus newStatus) throws ContractNotFoundException, UnauthorizedAccessException;
 
 	/**
 	 * Deletes the contract if it has not been deployed yet.
@@ -42,8 +41,7 @@ public interface IContractService {
 	 * @throws ContractReadException if reading the contract data fails
 	 * @throws ContractAlreadyConfirmedException if the contract has already been confirmed
 	 */
-	void deleteIfNotDeployed(String contractId)
-			throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, ContractAlreadyConfirmedException;
+	void deleteIfNotDeployed(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, ContractAlreadyConfirmedException;
 
 	/**
 	 * Retrieves the full digitalized contract by its ID.
@@ -54,8 +52,7 @@ public interface IContractService {
 	 * @throws UnauthorizedAccessException if the caller is unauthorized to access the contract
 	 * @throws ContractReadException if reading contract data fails
 	 */
-	DigitalizedContract getContract(String contractId)
-			throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException;
+	DigitalizedContract getContract(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException;
 
 	/**
 	 * Lists all contracts associated with the currently authenticated user.
@@ -74,8 +71,7 @@ public interface IContractService {
 	 * @throws ContractReadException if reading contract fails
 	 * @throws ClausesExtractionException if clause extraction fails
 	 */
-	List<String> extractClauses(String contractText)
-			throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, ClausesExtractionException;
+	List<String> extractClauses(String contractText) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, ClausesExtractionException;
 
 	/**
 	 * Generates Solidity source code for the contract identified by ID.
@@ -88,8 +84,7 @@ public interface IContractService {
 	 * @throws CompilationException if compilation of Solidity code fails
 	 * @throws SolidityGenerationException if code generation fails
 	 */
-	String generateSolidity(String contractId)
-			throws ContractNotFoundException, UnauthorizedAccessException, ClausesExtractionException, CompilationException, SolidityGenerationException;
+	String generateSolidity(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ClausesExtractionException, CompilationException, SolidityGenerationException;
 
 	/**
 	 * Deploys the contract with given constructor parameters using provided Ethereum credentials.
@@ -104,8 +99,7 @@ public interface IContractService {
 	 * @throws InvalidContractBinaryException if contract binary is invalid
 	 * @throws DeploymentFailedException if deployment fails
 	 */
-	String deployContractWithParams(String contractId, List<Object> constructorParams, Credentials credentials)
-			throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, InvalidContractBinaryException, DeploymentFailedException;
+	String deployContractWithParams(String contractId, List<Object> constructorParams, Credentials credentials) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, InvalidContractBinaryException, DeploymentFailedException;
 
 	/**
 	 * Estimates gas needed for deploying the contract with given constructor parameters.
@@ -120,6 +114,15 @@ public interface IContractService {
 	 * @throws InvalidContractBinaryException if contract binary is invalid
 	 * @throws GasEstimationFailedException if gas estimation fails
 	 */
-	GasEstimateResponseDTO estimateGasForDeployment(String contractId, List<Object> constructorParams, String deployerWalletAddress)
-			throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, InvalidContractBinaryException, GasEstimationFailedException;
+	GasEstimateResponseDTO estimateGasForDeployment(String contractId, List<Object> constructorParams, String deployerWalletAddress) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException, InvalidContractBinaryException, GasEstimationFailedException;
+
+	/**
+	 * Updates the Solidity code of an existing contract.
+	 *
+	 * @param contractId        ID of the contract to update
+	 * @param newSoliditySource   The new Solidity source code
+	 * @throws ContractNotFoundException      If the contract cannot be found
+	 * @throws UnauthorizedAccessException    If the user is not authorized to edit the contract
+	 */
+	void editSolidity(String contractId, String newSoliditySource) throws ContractNotFoundException, UnauthorizedAccessException;
 }

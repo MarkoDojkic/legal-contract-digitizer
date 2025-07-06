@@ -11,22 +11,22 @@ import org.springframework.context.ConfigurableApplicationContext;
 import java.io.Serial;
 
 public class LCDJavaFxUIApplication extends Application {
-
 	private ConfigurableApplicationContext applicationContext;
 
 	@Override
-	public void init() throws Exception {
+	public void init() {
 		applicationContext = new SpringApplicationBuilder(LegalContractDigitizerApplication.class).run();
 	}
 
 	@Override
-	public void start(Stage stage) throws Exception {
+	public void start(Stage stage) {
 		Font.loadFont(getClass().getResourceAsStream("/GunshipCondensedIFSCL.ttf"), 24);
+		Font.loadFont(getClass().getResourceAsStream("/Digital-7.ttf"), 24);
 		applicationContext.publishEvent(new StageReadyEvent(stage));
 	}
 
 	@Override
-	public void stop() throws Exception {
+	public void stop() {
 		SpringApplication.exit(applicationContext);
 	}
 
@@ -42,5 +42,4 @@ public class LCDJavaFxUIApplication extends Application {
 			return (Stage) getSource();
 		}
 	}
-
 }

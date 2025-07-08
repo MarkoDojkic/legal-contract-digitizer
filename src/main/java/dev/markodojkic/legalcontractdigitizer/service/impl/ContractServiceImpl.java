@@ -23,7 +23,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -233,7 +232,7 @@ public class ContractServiceImpl implements IContractService {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public String generateSolidity(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ClausesExtractionException, CompilationException, SolidityGenerationException {
+	public int generateSolidity(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ClausesExtractionException, SolidityGenerationException {
 		DocumentReference docRef = firestore.collection(CONTRACTS).document(contractId);
 		DocumentSnapshot snapshot = getDocumentOrThrow(contractId, docRef);
 
@@ -246,7 +245,24 @@ public class ContractServiceImpl implements IContractService {
 		String cachedSoliditySource = snapshot.getString(SOLIDITY_SOURCE);
 		if (cachedSoliditySource != null && !cachedSoliditySource.isEmpty()) {
 			log.debug("Using cached solidity code for contract ID: {}", contractId);
-			return compileAndUpdateDocument(docRef, snapshot, cachedSoliditySource);
+
+			CompilationResult result;
+			try {
+				log.debug("Compiling solidity code for contract ID: {}", snapshot.getId());
+				result = compile(cachedSoliditySource);
+			} catch (CompilationException e) {
+				log.error("Solidity compilation failed for contract ID: {}", snapshot.getId(), e);
+				throw new CompilationException("Solidity compilation failed: " + e.getLocalizedMessage());
+			}
+
+			docRef.update(Map.of(
+					BINARY, result.bin(),
+					"abi", result.abi(),
+					STATUS, ContractStatus.SOLIDITY_GENERATED.name()
+			));
+			log.debug("Successfully compiled Solidity source and updated contract ID: {}", snapshot.getId());
+
+			return 1;
 		}
 
 		log.debug("Generating solidity code for contract ID: {}", contractId);
@@ -255,12 +271,12 @@ public class ContractServiceImpl implements IContractService {
 			soliditySource = aiService.generateSolidityContract(clauses);
 		} catch (Exception e) {
 			log.error("Failed to generate solidity code for contract ID: {}", contractId, e);
-			throw new SolidityGenerationException(e.getLocalizedMessage());
+			throw new SolidityGenerationException("Failed to generate Solidity code for contract ID: " + contractId + " " + e.getLocalizedMessage());
 		}
 
 		if (soliditySource == null || soliditySource.isEmpty()) {
 			log.error("Generated solidity code is empty: {}", contractId);
-			throw new SolidityGenerationException("Generated solidity code is empty");
+			throw new SolidityGenerationException("Generated Solidity code is empty for contract ID: " + contractId);
 		}
 
 		// Update document with the generated Solidity source
@@ -270,7 +286,8 @@ public class ContractServiceImpl implements IContractService {
 		));
 		log.debug("Successfully updated document with Solidity source for contract ID: {}", contractId);
 
-		throw new CompilationException("Solidity code is prepared, you can view, edit or deploy");
+		// Return message indicating that the Solidity code is prepared but not yet compiled
+		return 0;
 	}
 
 	@Override
@@ -296,27 +313,6 @@ public class ContractServiceImpl implements IContractService {
 
 		return new GasEstimateResponseDTO("", estimateGasForDeployment.getLeft(), estimateGasForDeployment.getRight());
 	}
-
-	private String compileAndUpdateDocument(DocumentReference docRef, DocumentSnapshot snapshot, String soliditySource) throws CompilationException {
-		CompilationResult result;
-		try {
-			log.debug("Compiling solidity code for contract ID: {}", snapshot.getId());
-			result = compile(soliditySource);
-		} catch (CompilationException e) {
-			log.error("Solidity compilation failed for contract ID: {}", snapshot.getId(), e);
-			throw new CompilationException(e.getLocalizedMessage());
-		}
-
-		docRef.update(Map.of(
-				BINARY, result.bin(),
-				"abi", result.abi(),
-				STATUS, ContractStatus.SOLIDITY_GENERATED.name()
-		));
-		log.debug("Successfully compiled Solidity source and updated contract ID: {}", snapshot.getId());
-
-		return "Successfully compiled Solidity source";
-	}
-
 
 	private DocumentSnapshot getDocumentOrThrow(String contractId, DocumentReference docRef) throws ContractNotFoundException, UnauthorizedAccessException, ContractReadException {
 		try {
@@ -351,20 +347,12 @@ public class ContractServiceImpl implements IContractService {
 	}
 
 	private CompilationResult compile(String soliditySource) throws CompilationException {
-		Path secureDir = null;
-		Path sourceFile = null;
 		Process solidityExe = null;
 		try {
-			// Create secure temp directory in user home (not in world-writable temp)
-			secureDir = Files.createTempDirectory(Paths.get(System.getProperty("user.home")), "secure-solidity-");
-
-			sourceFile = Files.createTempFile(secureDir, "contract", ".sol");
+			Path sourceFile = Files.createTempFile(Paths.get(System.getProperty("user.home"), "dev.markodojkic", "legal_contract_digitizer", "1.0.0"), "contract", ".sol");
 			Files.writeString(sourceFile, soliditySource);
 
-			solidityExe = new ProcessBuilder(solidityCompilerExecutable,
-					"--combined-json", "abi,bin",
-					sourceFile.toAbsolutePath().toString()
-			).start();
+			solidityExe = new ProcessBuilder(solidityCompilerExecutable, "--combined-json", "abi,bin", sourceFile.toAbsolutePath().toString()).start();
 
 			if (solidityExe.waitFor() != 0) throw new CompilationException(new String(solidityExe.getErrorStream().readAllBytes()));
 
@@ -378,11 +366,7 @@ public class ContractServiceImpl implements IContractService {
 			Thread.currentThread().interrupt();
 			throw new CompilationException(e.getLocalizedMessage());
 		} finally {
-			try {
-				if (sourceFile != null) Files.deleteIfExists(sourceFile);
-				if (secureDir != null) Files.deleteIfExists(secureDir);
-				if (solidityExe != null) solidityExe.destroy();
-			} catch (IOException ignore) { /* SonarQube: ignoring exceptions here is safe */ }
+			if (solidityExe != null) solidityExe.destroy();
 		}
 	}
 }

@@ -11,6 +11,7 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.HBox;
 import javafx.util.Duration;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -45,45 +46,56 @@ public class SolidityViewController extends WindowAwareController {
 	}
 
 	@FXML
-	public void initialize() {
-		textArea.setText(text);
-		textArea.setEditable(false);
-		textArea.setFocusTraversable(false);
-		if(windowController == null) return;
+	private void initialize() {
+		Platform.runLater(() -> {
+			textArea.setText(text);
+			textArea.setEditable(false);
+			textArea.setFocusTraversable(false);
 
-		if(contractId != null){
-			ToggleButton editToggle = new ToggleButton("🧪️");
-			editToggle.setMinSize(14, 14);
-			editToggle.setMaxSize(14, 14);
-			editToggle.setPadding(new Insets(-2));
-			editToggle.getStyleClass().add("btn-action");
-			editToggle.setOnAction(_ -> {
-				boolean editing = editToggle.isSelected();
-				textArea.setEditable(editing);
-				textArea.setFocusTraversable(editing);
-				if(editing) return;
-				try {
-					ResponseEntity<String> response = httpClientUtil.patch(baseUrl + "/edit-solidity", null, DigitalizedContract.builder().id(contractId).soliditySource(textArea.getText()).build(), String.class);
+			if (contractId != null) {
+				final ToggleButton editToggle = new ToggleButton("📝");
+				final Button editToggleHelpButton = new Button("?");
+				editToggleHelpButton.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("Button left from this help button is toggle button\nWhen on Solidity code is on edit mode, after switching off it gets replaced in database (background blinks green twice if change is successful)"));
+				editToggleHelpButton.getStyleClass().add("btn-help");
+				editToggleHelpButton.setPrefSize(14, 14);
+				editToggleHelpButton.setStyle("-fx-background-color: transparent; -fx-border-color: transparent");
+				editToggleHelpButton.setPadding(new Insets(-30));
+				editToggleHelpButton.setFocusTraversable(false);
+				final HBox editToggleHBox = new HBox(editToggle, editToggleHelpButton);
 
-					if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> {
-						mainRefreshBtn.fire();
-						String originalStyle = textArea.getStyle();
+				editToggle.setPrefSize(14, 14);
+				editToggle.setPadding(new Insets(-2));
+				editToggle.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+				editToggle.setOnAction(_ -> {
+					boolean editing = editToggle.isSelected();
+					textArea.setEditable(editing);
+					textArea.setFocusTraversable(editing);
+					if (editing) return;
+					try {
+						ResponseEntity<String> response = httpClientUtil.patch(baseUrl + "/edit-solidity", null, DigitalizedContract.builder().id(contractId).soliditySource(textArea.getText()).build(), String.class);
 
-						Timeline blinkTimeline = new Timeline(
-								new KeyFrame(Duration.ZERO, _ -> textArea.setStyle("-fx-control-inner-background: #b6fcb6;")),
-								new KeyFrame(Duration.seconds(0.3), _ -> textArea.setStyle(originalStyle)),
-								new KeyFrame(Duration.seconds(0.6), _ -> textArea.setStyle("-fx-control-inner-background: #b6fcb6;")),
-								new KeyFrame(Duration.seconds(0.9), _ -> textArea.setStyle(originalStyle))
-						);
-						blinkTimeline.play();
-					});
-					else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
-				} catch (Exception e) {
-					log.error("Cannot edit prepared solidity contract", e);
-					windowLauncher.launchErrorSpecialWindow("Error occurred while editing prepared solidity contract:\n" + e.getLocalizedMessage());
-				}
-			});
-			Platform.runLater(() -> windowController.getTitleBar().getChildren().add(3, editToggle));
-		}
+						if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> {
+							mainRefreshBtn.fire();
+							String originalStyle = textArea.getStyle();
+
+							Timeline blinkTimeline = new Timeline(
+									new KeyFrame(Duration.ZERO, _ -> textArea.setStyle("-fx-control-inner-background: #b6fcb6;")),
+									new KeyFrame(Duration.seconds(0.3), _ -> textArea.setStyle(originalStyle)),
+									new KeyFrame(Duration.seconds(0.6), _ -> textArea.setStyle("-fx-control-inner-background: #b6fcb6;")),
+									new KeyFrame(Duration.seconds(0.9), _ -> textArea.setStyle(originalStyle))
+							);
+							blinkTimeline.play();
+						});
+						else throw new HttpResponseException(response.getStatusCode().value(), response.getBody());
+					} catch (Exception e) {
+						log.error("Cannot edit prepared solidity contract", e);
+						windowLauncher.launchErrorSpecialWindow("Error occurred while editing prepared solidity contract:\n" + e.getLocalizedMessage());
+					}
+				});
+
+
+				windowController.getTitleBar().getChildren().add(3, editToggleHBox);
+			}
+		});
 	}
 }

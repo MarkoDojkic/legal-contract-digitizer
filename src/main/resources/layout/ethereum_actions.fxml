@@ -15,7 +15,7 @@
     <Label text="Ethereum Actions" styleClass="eth-title"/>
     <Label fx:id="contractIdLabel"/>
 
-    <StackPane maxHeight="40" maxWidth="130">
+    <StackPane maxHeight="40" maxWidth="140">
         <Button fx:id="estimateGasBtn" text="Estimate Gas 💹"/>
         <Button fx:id="estimateGasHelpBtn" text="?" maxWidth="20" maxHeight="20" minWidth="20" minHeight="20" styleClass="btn-help" StackPane.alignment="TOP_RIGHT" focusTraversable="false" translateX="10" translateY="-10" />
     </StackPane>

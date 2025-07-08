@@ -56,7 +56,7 @@ public class MainController extends WindowAwareController {
     }
 
     @FXML
-    public void initialize() {
+    private void initialize() {
         nameLabel.setText("Logged in as: " + preferences.get("name", "N/A"));
         emailLabel.setText("Email:" + preferences.get("email", "N/A"));
 
@@ -123,8 +123,6 @@ public class MainController extends WindowAwareController {
                 nextStepBtn.getStyleClass().add("btn-action");
                 nextStepHelpBtn.getStyleClass().add(btnHelpStyle);
                 nextStepHelpBtn.setPrefSize(20, 20);
-                nextStepHelpBtn.setMinSize(20, 20);
-                nextStepHelpBtn.setMaxSize(20, 20);
                 nextStepHelpBtn.setFocusTraversable(false);
                 nextStepHelpBtn.setTranslateX(10);
                 nextStepHelpBtn.setTranslateY(-10);
@@ -133,8 +131,6 @@ public class MainController extends WindowAwareController {
                 viewClausesBtn.getStyleClass().add("btn-info");
                 viewClausesHelpBtn.getStyleClass().add(btnHelpStyle);
                 viewClausesHelpBtn.setPrefSize(20, 20);
-                viewClausesHelpBtn.setMinSize(20, 20);
-                viewClausesHelpBtn.setMaxSize(20, 20);
                 viewClausesHelpBtn.setFocusTraversable(false);
                 viewClausesHelpBtn.setTranslateX(10);
                 viewClausesHelpBtn.setTranslateY(-10);
@@ -143,8 +139,6 @@ public class MainController extends WindowAwareController {
                 viewEditSolidityBtn.getStyleClass().add("btn-info");
                 viewEditSolidityHelpBtn.getStyleClass().add(btnHelpStyle);
                 viewEditSolidityHelpBtn.setPrefSize(20, 20);
-                viewEditSolidityHelpBtn.setMinSize(20, 20);
-                viewEditSolidityHelpBtn.setMaxSize(20, 20);
                 viewEditSolidityHelpBtn.setFocusTraversable(false);
                 viewEditSolidityHelpBtn.setTranslateX(10);
                 viewEditSolidityHelpBtn.setTranslateY(-10);
@@ -153,8 +147,6 @@ public class MainController extends WindowAwareController {
                 deleteContractBtn.getStyleClass().add("btn-danger");
                 deleteContractHelpBtn.getStyleClass().add(btnHelpStyle);
                 deleteContractHelpBtn.setPrefSize(20, 20);
-                deleteContractHelpBtn.setMinSize(20, 20);
-                deleteContractHelpBtn.setMaxSize(20, 20);
                 deleteContractHelpBtn.setFocusTraversable(false);
                 deleteContractHelpBtn.setTranslateX(10);
                 deleteContractHelpBtn.setTranslateY(-10);
@@ -233,7 +225,7 @@ public class MainController extends WindowAwareController {
 
                 if (getTableView().getItems().get(getIndex()).status().compareTo(CLAUSES_EXTRACTED) >= 0) container.getChildren().add(viewClausesStackPane);
                 if (getTableView().getItems().get(getIndex()).status().compareTo(SOLIDITY_PREPARED) >= 0) container.getChildren().add(viewEditSolidityStackPane);
-                if (getTableView().getItems().get(getIndex()).status().compareTo(CONFIRMED) < 0) container.getChildren().add(deleteContractStackPane);
+                if (getTableView().getItems().get(getIndex()).status().compareTo(DEPLOYED) < 0) container.getChildren().add(deleteContractStackPane);
 
                 setGraphic(container);
             }
@@ -255,7 +247,7 @@ public class MainController extends WindowAwareController {
 
             if(response.getBody() == null) throw new NoHttpResponseException("Listing user contracts failed with no response");
             else if (response.getStatusCode().is2xxSuccessful()) Platform.runLater(() -> contractsTable.getItems().setAll(response.getBody().left()));
-            else throw new HttpResponseException(response.getStatusCode().value(), response.getBody().right());
+            else throw new HttpResponseException(response.getStatusCode().value(), Objects.requireNonNull(response.getBody()).right());
         } catch (Exception e) {
             log.error("Cannot retrieve list of contracts", e);
             windowLauncher.launchErrorSpecialWindow("Error occurred while reloading contracts:\n" + e.getLocalizedMessage());

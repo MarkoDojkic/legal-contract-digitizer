@@ -2,12 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.3</version>
-		<relativePath/>
-	</parent>
+
 	<groupId>dev.markodojkic</groupId>
 	<artifactId>legal-contract-digitizer</artifactId>
 	<version>1.0.0</version>
@@ -44,10 +39,10 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<application.version>${project.version}</application.version>
 		<java.version>24</java.version>
-		<spring.version>${project.parent.version}</spring.version>
+		<spring.version>3.5.3</spring.version>
 		<web3j.version>5.0.0</web3j.version>
 		<grpc.version>1.73.0</grpc.version>
-		<javafx.version>25-ea+22</javafx.version>
+		<javafx.version>25-ea+23</javafx.version>
 		<sonar.projectKey>${project.artifactId}</sonar.projectKey>
 		<sonar.projectName>${project.name}</sonar.projectName>
 		<sonar.projectVersion>${application.version}</sonar.projectVersion>
@@ -96,6 +91,11 @@
 			</exclusions>
 		</dependency>
 
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+			<version>5.5</version>
+		</dependency>
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
@@ -189,6 +189,10 @@
 					<groupId>com.google.guava</groupId>
 					<artifactId>guava</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>commons-codec</groupId>
+					<artifactId>commons-codec</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
@@ -219,6 +223,18 @@
 					<groupId>com.squareup.okio</groupId>
 					<artifactId>okio</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>com.squareup.okhttp3</groupId>
+					<artifactId>okhttp</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>com.squareup.okhttp3</groupId>
+					<artifactId>logging-interceptor</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>com.fasterxml.jackson.core</groupId>
+					<artifactId>jackson-databind</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
@@ -234,7 +250,17 @@
 		<dependency>
 			<groupId>com.squareup.okio</groupId>
 			<artifactId>okio</artifactId>
-			<version>3.14.0</version>
+			<version>3.15.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>okhttp</artifactId>
+			<version>5.1.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>logging-interceptor</artifactId>
+			<version>5.1.0</version>
 		</dependency>
 		<dependency>
 			<groupId>io.grpc</groupId>
@@ -260,6 +286,24 @@
 	</dependencyManagement>
 
 	<build>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>banner.txt</exclude>
+				</excludes>
+			</resource>
+
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>banner.txt</include>  <!-- Only filter banner.txt -->
+				</includes>
+			</resource>
+		</resources>
+
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
@@ -268,30 +312,6 @@
 				<configuration>
 					<mainClass>dev.markodojkic.legalcontractdigitizer.LegalContractDigitizerApplication</mainClass>
 					<layout>JAR</layout>
-					<addResources>
-						<resource>
-							<directory>src/main/resources</directory>
-							<filtering>true</filtering>
-							<excludes>
-								<exclude>**/*.wav</exclude>
-								<exclude>**/*.png</exclude>
-								<exclude>**/*.css</exclude>
-								<exclude>**/*.fxml</exclude>
-								<exclude>**/*.ttf</exclude>
-							</excludes>
-						</resource>
-						<resource>
-							<directory>src/main/resources</directory>
-							<filtering>false</filtering>
-							<includes>
-								<include>**/*.wav</include>
-								<include>**/*.png</include>
-								<include>**/*.css</include>
-								<include>**/*.fxml</include>
-								<exclude>**/*.ttf</exclude>
-							</includes>
-						</resource>
-					</addResources>
 				</configuration>
 				<executions>
 					<execution>
@@ -315,7 +335,22 @@
 							<version>1.18.38</version>
 						</path>
 					</annotationProcessorPaths>
+					<compilerArgs>
+						<arg>-parameters</arg>
+					</compilerArgs>
 				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.sonarsource.scanner.maven</groupId>
+				<artifactId>sonar-maven-plugin</artifactId>
+				<version>5.1.0.4751</version>
+			</plugin>
+
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>versions-maven-plugin</artifactId>
+				<version>2.18.0</version>
 			</plugin>
 		</plugins>
 	</build>

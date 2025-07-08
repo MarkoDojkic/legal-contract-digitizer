@@ -72,12 +72,12 @@ public class EthereumActionsController extends WindowAwareController {
 	}
 
 	@FXML
-	public void initialize() {
+	private void initialize() {
 		// Initialize UI based on contract
 		reset();
 		contractIdLabel.setText("Contract ID: " + contract.id());
 		updateButtonsByStatus(contract.status());
-		if(contract.status().compareTo(ContractStatus.CONFIRMED) > 0){
+		if(contract.status().compareTo(ContractStatus.CONFIRMED) >= 0){
 			refreshBalance();
 			startAutoRefreshBalance();
 		}
@@ -138,7 +138,7 @@ public class EthereumActionsController extends WindowAwareController {
 								.setScale(6, RoundingMode.HALF_UP).toPlainString() + " ETH");
 						windowLauncher.launchSuccessSpecialWindow("Gas estimation completed successfully for contract: " + contract.id());
 					});
-				else throw new HttpResponseException(response.getStatusCode().value(), response.getBody().message());
+				else throw new HttpResponseException(response.getStatusCode().value(), Objects.requireNonNull(response.getBody()).message());
 			} catch (Exception e) {
 				log.error("Could not estimate gas price and limit for deploying contract", e);
 				windowLauncher.launchErrorSpecialWindow("Error occurred while estimating gas required to deploy a contract:\n" + e.getLocalizedMessage());
@@ -343,8 +343,6 @@ public class EthereumActionsController extends WindowAwareController {
 		smartContractFunctionButton.getStyleClass().add("btn-action");
 		smartContractFunctionHelpButton.getStyleClass().add("btn-help");
 		smartContractFunctionHelpButton.setPrefSize(20, 20);
-		smartContractFunctionHelpButton.setMinSize(20, 20);
-		smartContractFunctionHelpButton.setMaxSize(20, 20);
 		smartContractFunctionHelpButton.setFocusTraversable(false);
 		smartContractFunctionHelpButton.setTranslateX(10);
 		smartContractFunctionHelpButton.setTranslateY(-10);

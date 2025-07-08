@@ -77,14 +77,14 @@ public interface IContractService {
 	 * Generates Solidity source code for the contract identified by ID.
 	 *
 	 * @param contractId the contract's unique identifier
-	 * @return Solidity source code as a string
+	 * @return 0 if prepared, 1 if compiled
 	 * @throws ContractNotFoundException if the contract is not found
 	 * @throws UnauthorizedAccessException if unauthorized access
 	 * @throws ClausesExtractionException if clause extraction fails
 	 * @throws CompilationException if compilation of Solidity code fails
 	 * @throws SolidityGenerationException if code generation fails
 	 */
-	String generateSolidity(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ClausesExtractionException, CompilationException, SolidityGenerationException;
+	int generateSolidity(String contractId) throws ContractNotFoundException, UnauthorizedAccessException, ClausesExtractionException, CompilationException, SolidityGenerationException;
 
 	/**
 	 * Deploys the contract with given constructor parameters using provided Ethereum credentials.

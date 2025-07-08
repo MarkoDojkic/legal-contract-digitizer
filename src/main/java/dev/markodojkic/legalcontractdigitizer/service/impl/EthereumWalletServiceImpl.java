@@ -13,12 +13,13 @@ import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.WalletUtils;
 
-import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -29,13 +30,12 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 public class EthereumWalletServiceImpl implements IEthereumWalletService {
 
 	private static final String KEYSTORE_DIR = "ethWallets", WALLETS = "wallets";
-	// Regex pattern to match files like "MyWallet-0x1234567890abcdef1234567890abcdef12345678"
 	private static final Pattern WALLET_FILENAME_PATTERN = Pattern.compile("(.*)-([0-9a-fA-F]{40}).json");
 
 	@Value("${ethereum.walletKeystore.password}")
 	private String walletKeystorePassword;
 
-	private final Cache<String, List<WalletInfo>> walletsCache = Caffeine.newBuilder().maximumSize(1).build(); // In-memory cache for wallets list
+	private final Cache<String, List<WalletInfo>> walletsCache = Caffeine.newBuilder().maximumSize(1).build();
 	private final IEthereumService ethereumService;
 
 	private String lastDirHash;
@@ -43,18 +43,17 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 	@Override
 	public WalletInfo createWallet(String label) {
 		try {
-			File dir = new File(KEYSTORE_DIR);
-			if (!dir.exists() && !dir.mkdirs()) throw new IOException("Failed to create keystore directory: " + dir.getAbsolutePath());
+			Path keystoreDir = Paths.get(System.getProperty("user.home"), "dev.markodojkic", "legal_contract_digitizer", "1.0.0").resolve(KEYSTORE_DIR);
+			String walletFilename = WalletUtils.generateNewWalletFile(walletKeystorePassword, keystoreDir.toFile(), false);
+			Path walletFile = keystoreDir.resolve(walletFilename);
 
-			// Generate wallet file and load credentials
-			File walletFile = new File(dir, WalletUtils.generateNewWalletFile(walletKeystorePassword, dir, false));
-			Credentials credentials = WalletUtils.loadCredentials(walletKeystorePassword, walletFile);
+			Credentials credentials = WalletUtils.loadCredentials(walletKeystorePassword, walletFile.toFile());
 
-			// Rename file to the format "label-address.json"
-			File renamedFile = new File(dir, label + "-" + credentials.getAddress() + ".json");
-			if (!renamedFile.toPath().normalize().startsWith(dir.toPath().normalize()) || !walletFile.renameTo(renamedFile)) throw new WalletCreationException("Failed to rename wallet file to the correct format.");
+			// Rename wallet file
+			Path renamedFile = keystoreDir.resolve(label + "-" + credentials.getAddress() + ".json");
+			if (!walletFile.getParent().equals(renamedFile.getParent()) || !Files.move(walletFile, renamedFile, StandardCopyOption.REPLACE_EXISTING).toFile().exists()) throw new WalletCreationException("Failed to rename wallet file to the correct format.");
 
-			WalletInfo wallet = new WalletInfo(label, "0x" + credentials.getAddress(), ethereumService.getBalance(credentials.getAddress()), renamedFile.getName());
+			WalletInfo wallet = new WalletInfo(label, "0x" + credentials.getAddress(), ethereumService.getBalance(credentials.getAddress()), renamedFile.getFileName().toString());
 			updateCache(wallet);
 
 			return wallet;
@@ -65,7 +64,6 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 
 	@Override
 	public List<WalletInfo> listWallets() {
-		// If directory content has changed, reload wallets; otherwise, use cache
 		if (isDirectoryModified()) loadWalletsFromDirectory();
 		return walletsCache.getIfPresent(WALLETS);
 	}
@@ -79,7 +77,7 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 				.findFirst()
 				.map(wallet -> {
 					try {
-						return WalletUtils.loadCredentials(walletKeystorePassword, new File(KEYSTORE_DIR, wallet.keystoreFile()));
+						return WalletUtils.loadCredentials(walletKeystorePassword, Paths.get(System.getProperty("user.home"), "dev.markodojkic", "legal_contract_digitizer", "1.0.0").resolve(KEYSTORE_DIR).resolve(wallet.keystoreFile()).toFile());
 					} catch (Exception e) {
 						throw new WalletNotFoundException("Requested credentials failed to load");
 					}
@@ -88,38 +86,41 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 	}
 
 	private boolean isDirectoryModified() {
-		File dir = new File(KEYSTORE_DIR);
-		if (!dir.exists() || !dir.isDirectory()) return false;
+		Path dir = Paths.get(System.getProperty("user.home"), "dev.markodojkic", "legal_contract_digitizer", "1.0.0").resolve(KEYSTORE_DIR);
+		if (!Files.exists(dir) || !Files.isDirectory(dir)) return false;
 
-		// Generate a hash of the directory's contents (file names)
 		String currentDirHash = generateDirectoryHash(dir);
 
-		// Compare the current directory hash with the stored one
 		if (!currentDirHash.equals(lastDirHash)) {
 			lastDirHash = currentDirHash;
-			return true;  // Directory has changed
+			return true;
 		}
-		return false;  // No change detected
+		return false;
 	}
 
-	private String generateDirectoryHash(File dir) {
-		// List and hash all wallet filenames in the directory
-		List<String> currentFilenames = Arrays.stream(Objects.requireNonNull(dir.listFiles()))
-				.filter(file -> file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches())
-				.map(File::getName)
-				.sorted().toList();
-
-		return String.join(",", currentFilenames);
+	private String generateDirectoryHash(Path dir) {
+		try (Stream<Path> paths = Files.walk(dir)) {
+			return paths
+					.filter(Files::isRegularFile)
+					.map(path -> path.getFileName().toString())
+					.filter(filename -> WALLET_FILENAME_PATTERN.matcher(filename).matches())
+					.sorted()
+					.reduce("", (acc, filename) -> acc + filename);
+		} catch (IOException e) {
+			log.error("Error reading wallet directory", e);
+			return "";
+		}
 	}
 
 	private void loadWalletsFromDirectory() {
-		File dir = new File(KEYSTORE_DIR);
-		if (!dir.exists() || !dir.isDirectory()) return;
+		Path dir = Paths.get(System.getProperty("user.home"), "dev.markodojkic", "legal_contract_digitizer", "1.0.0").resolve(KEYSTORE_DIR);
+		if (!Files.exists(dir) || !Files.isDirectory(dir)) return;
 
-		List<WalletInfo> loadedWallets = Arrays.stream(Objects.requireNonNull(dir.listFiles()))
-				.filter(file -> file.isFile() && WALLET_FILENAME_PATTERN.matcher(file.getName()).matches())
-				.map(file -> {
-					Matcher matcher = WALLET_FILENAME_PATTERN.matcher(file.getName());
+		List<WalletInfo> loadedWallets = new ArrayList<>();
+		try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+			for (Path file : stream) {
+				if (Files.isRegularFile(file) && WALLET_FILENAME_PATTERN.matcher(file.getFileName().toString()).matches()) {
+					Matcher matcher = WALLET_FILENAME_PATTERN.matcher(file.getFileName().toString());
 					if (matcher.matches()) {
 						String label = matcher.group(1);
 						String address = "0x" + matcher.group(2);
@@ -129,11 +130,13 @@ public class EthereumWalletServiceImpl implements IEthereumWalletService {
 						} catch (EthereumConnectionException e) {
 							log.error("Cannot get balance for wallet, will fallback to -1.0 ETH", e);
 						}
-						return new WalletInfo(label, address, balance, file.getName());
+						loadedWallets.add(new WalletInfo(label, address, balance, file.getFileName().toString()));
 					}
-					return null;
-				})
-				.filter(Objects::nonNull).toList();
+				}
+			}
+		} catch (IOException e) {
+			log.error("Error loading wallets from directory", e);
+		}
 
 		walletsCache.put(WALLETS, loadedWallets);
 	}

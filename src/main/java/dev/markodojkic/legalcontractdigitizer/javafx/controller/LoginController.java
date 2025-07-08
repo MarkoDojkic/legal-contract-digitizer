@@ -12,6 +12,7 @@ import dev.markodojkic.legalcontractdigitizer.javafx.WindowLauncher;
 import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +31,7 @@ import java.util.prefs.Preferences;
 @Slf4j
 public class LoginController extends WindowAwareController {
 
+    @FXML private Button loginBtn, loginHelpBtn;
     private final String googleAuthUrl, googleRedirectUrl;
     private final GoogleAuthorizationCodeFlow authorizationCodeFlow;
     private final Preferences preferences = Preferences.userNodeForPackage(LegalContractDigitizerApplication.class);
@@ -51,16 +53,15 @@ public class LoginController extends WindowAwareController {
     }
 
     @FXML
-    public void onLoginBtnClicked() {
-        AuthSession.setAccessToken(preferences.get("accessToken", null));
-        AuthSession.setRefreshToken(preferences.get("refreshToken", null));
-        if (AuthSession.hasAccessToken()) login("");
-        else launchGoogleSignInFlow();
-    }
+    public void initialize() {
+        loginBtn.setOnAction(_ -> {
+            AuthSession.setAccessToken(preferences.get("accessToken", null));
+            AuthSession.setRefreshToken(preferences.get("refreshToken", null));
+            if (AuthSession.hasAccessToken()) login("");
+            else launchGoogleSignInFlow();
+        });
 
-    @FXML
-    public void onLoginHelpBtnClicked() {
-        windowLauncher.launchHelpSpecialWindow("You will be prompted to login with Google account. \nAccess will be granted directly if access token is stored (during previous successful login).\nIn case of access token expiration, refresh token will be used to renew access token.");
+        loginHelpBtn.setOnAction(_ -> windowLauncher.launchHelpSpecialWindow("You will be prompted to login with Google account. \nAccess will be granted directly if access token is stored (during previous successful login).\nIn case of access token expiration, refresh token will be used to renew access token."));
     }
 
     private String extractQueryParam(String url, String param) {
@@ -73,7 +74,7 @@ public class LoginController extends WindowAwareController {
                     if (keyVal.length == 2 && keyVal[0].equals(param)) return URLDecoder.decode(keyVal[1], StandardCharsets.UTF_8);
                 }
             }
-        } catch (Exception _) { /* Ignore parsing errors */}
+        } catch (Exception _) { /* SonarQube: ignoring exceptions here is safe */ }
         return null;
     }
 

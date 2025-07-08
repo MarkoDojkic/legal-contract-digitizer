@@ -9,7 +9,7 @@
     <Label fx:id="titleLabel" text="Enter Parameters" />
     <VBox fx:id="dynamicFieldsBox" spacing="10" />
     <HBox spacing="10" alignment="CENTER">
-        <Button text="Confirm" onAction="#onConfirm" />
-        <Button text="Cancel" onAction="#onCancel" />
+        <Button fx:id="confirmBtn" text="Confirm" />
+        <Button fx:id="cancelBtn" text="Cancel" />
     </HBox>
 </VBox>

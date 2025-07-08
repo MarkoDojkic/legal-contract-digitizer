@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 public class ConstructorInputController extends WindowAwareController {
     public static final String ADDRESS = "address";
 
+    @FXML private Button confirmBtn, cancelBtn;
     @FXML private VBox dynamicFieldsBox;
     @FXML private Label titleLabel;
 
@@ -44,6 +45,46 @@ public class ConstructorInputController extends WindowAwareController {
         paramTypes = new ArrayList<>();
         paramFields = new ArrayList<>();
         collectedParams = new ArrayList<>();
+    }
+
+    @FXML
+    private void initialize(){
+        confirmBtn.setOnAction(_ -> {
+            try {
+                collectedParams.clear();
+                for (int i = 0; i < paramTypes.size(); i++) {
+                    String type = paramTypes.get(i);
+                    String value = switch (paramFields.get(i)) {
+                        case ComboBox<?> cb -> {
+                            Object selected = cb.getValue();
+                            if (selected == null) throw new IllegalArgumentException("Missing selection for " + type);
+                            yield (selected instanceof WalletInfo wi) ? wi.address() : selected.toString();
+                        }
+                        case TextField tf -> {
+                            String text = tf.getText();
+                            if (text == null || text.isBlank()) throw new IllegalArgumentException("Missing input for " + type);
+                            yield text;
+                        }
+                        default -> throw new IllegalArgumentException("Unknown input field type");
+                    };
+
+                    collectedParams.add(parseParam(type, value));
+                }
+
+                if(retrievedParamsFuture != null) retrievedParamsFuture.complete(Pair.of(collectedParams.removeFirst().toString(), collectedParams));
+                windowController.getCloseBtn().fire();
+            } catch (Exception e) {
+                if(retrievedParamsFuture != null) retrievedParamsFuture.completeExceptionally(e);
+                windowLauncher.launchErrorSpecialWindow(e.getLocalizedMessage());
+            }
+        });
+
+        cancelBtn.setOnAction(_ -> {
+            collectedParams.clear();
+            windowController.getCloseBtn().fire();
+            windowLauncher.launchWarnSpecialWindow("Action canceled");
+            if(retrievedParamsFuture != null) retrievedParamsFuture.completeExceptionally(new IllegalArgumentException("Parameters were not provided or invalid."));
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -116,45 +157,6 @@ public class ConstructorInputController extends WindowAwareController {
         VBox box = new VBox(label, input);
         box.setSpacing(4);
         return box;
-    }
-
-    @FXML
-    private void onConfirm() {
-        try {
-            collectedParams.clear();
-            for (int i = 0; i < paramTypes.size(); i++) {
-                String type = paramTypes.get(i);
-                String value = switch (paramFields.get(i)) {
-                    case ComboBox<?> cb -> {
-                        Object selected = cb.getValue();
-                        if (selected == null) throw new IllegalArgumentException("Missing selection for " + type);
-                        yield (selected instanceof WalletInfo wi) ? wi.address() : selected.toString();
-                    }
-                    case TextField tf -> {
-                        String text = tf.getText();
-                        if (text == null || text.isBlank()) throw new IllegalArgumentException("Missing input for " + type);
-                        yield text;
-                    }
-                    default -> throw new IllegalArgumentException("Unknown input field type");
-                };
-
-                collectedParams.add(parseParam(type, value));
-            }
-
-            if(retrievedParamsFuture != null) retrievedParamsFuture.complete(Pair.of(collectedParams.removeFirst().toString(), collectedParams));
-            windowController.getCloseBtn().fire();
-        } catch (Exception e) {
-            if(retrievedParamsFuture != null) retrievedParamsFuture.completeExceptionally(e);
-            windowLauncher.launchErrorSpecialWindow(e.getLocalizedMessage());
-        }
-    }
-
-    @FXML
-    private void onCancel() {
-        collectedParams.clear();
-        windowController.getCloseBtn().fire();
-        windowLauncher.launchWarnSpecialWindow("Action canceled");
-        if(retrievedParamsFuture != null) retrievedParamsFuture.completeExceptionally(new IllegalArgumentException("Parameters were not provided or invalid."));
     }
 
     private Object parseParam(String type, String value) {

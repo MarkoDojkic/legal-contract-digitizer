@@ -79,7 +79,7 @@ public class WindowLauncher {
         selectButton.setOnAction(_ -> {
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Select a file");
-            File file = fileChooser.showOpenDialog(null);
+            File file = fileChooser.showOpenDialog(controller.getWindowRoot().getScene().getWindow());
             if (file != null) {
                 fileLabel.setText("Uploading: " + file.getName());
                 onFilePicked.accept(file);

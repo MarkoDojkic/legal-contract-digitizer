@@ -8,12 +8,14 @@ import javafx.application.Platform;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
-import javafx.scene.media.AudioClip;
 import javafx.util.Duration;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import java.net.URL;
 import java.util.Objects;
 
 @Component
@@ -25,7 +27,7 @@ public class WindowAnimator {
         windowRoot.setVisible(true); // needed if just added to scene
         Platform.runLater(() -> {
             String suffix = isSpecialWindow ? "_special.wav" : "_classical.wav";
-            new AudioClip(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_opening" + suffix)).toExternalForm()).play();
+            playAudio(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_opening" + suffix)));
             double targetHeight = titleBar.getHeight() + contentArea.getHeight() + statusBar.getHeight();
             double titleBarHeight = titleBar.getHeight() > 0 ? titleBar.getHeight() : 40;
             double statusBarHeight = statusBar.getHeight() > 0 ? statusBar.getHeight() : 30;
@@ -71,7 +73,7 @@ public class WindowAnimator {
     }
 
     public static void closeWindow(Pane windowPane, HBox titleBar, HBox statusBar, StackPane contentArea) {
-        new AudioClip(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_closing.wav")).toExternalForm()).play();
+        playAudio(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_closing.wav")));
         double currentHeight = windowPane.getHeight();
         double titleBarHeight = titleBar.getHeight() > 0 ? titleBar.getHeight() : 40;
         double statusBarHeight = statusBar.getHeight() > 0 ? statusBar.getHeight() : 30;
@@ -107,5 +109,13 @@ public class WindowAnimator {
 
         SequentialTransition sequence = new SequentialTransition(slideAway, blink);
         sequence.play();
+    }
+
+    public static void playAudio(URL audioStreamUrl) {
+        try {
+            Clip audioClip = AudioSystem.getClip();
+            audioClip.open(AudioSystem.getAudioInputStream(audioStreamUrl));
+            audioClip.start(); //Play once
+        } catch (Exception _) { /* SonarQube: ignoring exceptions here is safe */ }
     }
 }

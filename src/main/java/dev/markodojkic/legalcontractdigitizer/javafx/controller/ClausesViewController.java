@@ -12,8 +12,7 @@ import java.util.List;
 
 @Component
 public class ClausesViewController extends WindowAwareController {
-	@FXML
-	private ListView<String> clausesListView;
+	@FXML private ListView<String> clausesListView;
 
 	private final List<String> pendingClauses;
 
@@ -24,7 +23,7 @@ public class ClausesViewController extends WindowAwareController {
 	}
 
 	@FXML
-	public void initialize() {
+	private void initialize() {
 		clausesListView.getItems().setAll(pendingClauses);
 	}
 

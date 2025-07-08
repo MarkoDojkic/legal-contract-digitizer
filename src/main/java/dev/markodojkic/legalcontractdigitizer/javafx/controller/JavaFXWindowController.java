@@ -11,7 +11,6 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
-import javafx.scene.media.AudioClip;
 import javafx.util.Duration;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,17 +20,16 @@ import java.util.Objects;
 
 @Component
 public class JavaFXWindowController {
-    @FXML public BorderPane borderPane;
-    @FXML @Getter  public Button minimizeBtn, shrinkBtn, closeBtn;
+    @FXML @Getter private BorderPane borderPane;
+    @FXML @Getter private Button minimizeBtn, shrinkBtn, closeBtn;
     @FXML @Getter private HBox titleBar, statusBar;
     @FXML @Getter private StackPane contentArea;
 
     @FXML private Label titleLabel;
 
-    @Getter @Setter private Pane windowRoot;
+    @FXML @Getter @Setter private Pane windowRoot;
     @Setter private WindowLauncher windowLauncher;
 
-    // Track states for toggling
     private boolean minimized = false;
     private boolean shrunk = false;
 
@@ -61,7 +59,7 @@ public class JavaFXWindowController {
 
     private void toggleMinimize() {
         if (!minimized) {
-            new AudioClip(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_minimize.wav")).toExternalForm()).play();
+            WindowAnimator.playAudio(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_minimize.wav")));
             contentArea.setVisible(false);
             statusBar.setVisible(false);
 
@@ -69,7 +67,7 @@ public class JavaFXWindowController {
 
             minimized = true;
         } else {
-            new AudioClip(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_maximize.wav")).toExternalForm()).play();
+            WindowAnimator.playAudio(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_maximize.wav")));
             contentArea.setVisible(true);
             statusBar.setVisible(true);
 
@@ -81,13 +79,13 @@ public class JavaFXWindowController {
 
     private void toggleShrink() {
         if (!shrunk) {
-            new AudioClip(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_scaleDown.wav")).toExternalForm()).play();
+            WindowAnimator.playAudio(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_scaleDown.wav")));
             // Scale down windowRoot to 45%
             windowRoot.setScaleX(0.45);
             windowRoot.setScaleY(0.45);
             shrunk = true;
         } else {
-            new AudioClip(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_scaleUp.wav")).toExternalForm()).play();
+            WindowAnimator.playAudio(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("static/audio/window_scaleUp.wav")));
             // Restore scale
             windowRoot.setScaleX(1);
             windowRoot.setScaleY(1);

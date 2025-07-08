@@ -184,7 +184,7 @@ public class HttpClientUtil {
 	private <T> ResponseEntity<T> sendRequest(Request request, Type responseType) throws IOException {
 		try (Response response = client.newCall(request).execute()) {
 
-			String responseBody = response.body() != null ? response.body().string() : null;
+			String responseBody = response.body().string();
 			T bodyObj = null;
 
 			if(response.code() == 401) responseBody = unauthorizedRequestBody(responseType);

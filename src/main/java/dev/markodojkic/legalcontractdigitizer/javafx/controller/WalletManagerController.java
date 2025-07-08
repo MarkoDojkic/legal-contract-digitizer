@@ -18,13 +18,13 @@ import org.apache.http.client.HttpResponseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Component
@@ -49,7 +49,7 @@ public class WalletManagerController extends WindowAwareController {
 	}
 
 	@FXML
-	public void initialize() {
+	private void initialize() {
 		labelColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().label()));
 		addressColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().address()));
 		balanceColumn.setCellValueFactory(cellData -> new SimpleObjectProperty<>(cellData.getValue().balance()));
@@ -66,11 +66,9 @@ public class WalletManagerController extends WindowAwareController {
 			{
 				viewHelpBtn.getStyleClass().add("btn-help");
 				viewHelpBtn.setPrefSize(20, 20);
-				viewHelpBtn.setMinSize(20, 20);
-				viewHelpBtn.setMaxSize(20, 20);
 				viewHelpBtn.setFocusTraversable(false);
-				viewHelpBtn.setTranslateX(10);
-				viewHelpBtn.setTranslateY(-10);
+				viewHelpBtn.setTranslateX(5);
+				viewHelpBtn.setTranslateY(-5);
 
 				StackPane.setAlignment(viewHelpBtn, Pos.TOP_RIGHT);
 
@@ -126,12 +124,9 @@ public class WalletManagerController extends WindowAwareController {
 					}.getType()
 			);
 
-			if(response.getBody() == null) throw new HttpResponseException(HttpStatus.NO_CONTENT.value(),  "Response body is null");
-			else if(!response.getStatusCode().is2xxSuccessful()) throw new HttpResponseException(response.getStatusCode().value(), response.getBody().getFirst().label());
-			else Platform.runLater(() -> {
-				if(response.getBody().isEmpty()) windowLauncher.launchWarnSpecialWindow("No ethereum wallets found.");
-				walletTable.getItems().setAll(response.getBody());
-			});
+			if(response.getBody() == null) windowLauncher.launchWarnSpecialWindow("No ethereum wallets found.");
+			else if(!response.getStatusCode().is2xxSuccessful()) throw new HttpResponseException(response.getStatusCode().value(), Objects.requireNonNull(response.getBody()).getFirst().label());
+			else Platform.runLater(() -> walletTable.getItems().setAll(response.getBody()));
 		} catch (Exception e) {
 			log.error("Error occurred while loading wallets", e);
 			windowLauncher.launchErrorSpecialWindow("Error occurred while loading wallets:\n" + e.getLocalizedMessage());

@@ -78,11 +78,18 @@ public class ContractController {
 		}
 	}
 
-	@Operation(summary = "Generate solidity code from contract", description = "Generates Solidity smart contract code from a legal contract.", responses = {@ApiResponse(responseCode = "200", description = "Solidity generated successfully"), @ApiResponse(responseCode = "206", description = "Solidity prepared but not generated due to compilation error"), @ApiResponse(responseCode = "403", description = "Unauthorized access to contract"), @ApiResponse(responseCode = "404", description = "Contract not found"), @ApiResponse(responseCode = "500", description = "Server error occurred")})
+	@Operation(summary = "Generate solidity code from contract", description = "Generates Solidity smart contract code from a legal contract.",
+			responses = {
+					@ApiResponse(responseCode = "200", description = "Solidity generated successfully"),
+					@ApiResponse(responseCode = "206", description = "Solidity prepared but not generated"),
+					@ApiResponse(responseCode = "403", description = "Unauthorized access to contract"),
+					@ApiResponse(responseCode = "404", description = "Contract not found"),
+					@ApiResponse(responseCode = "500", description = "Server error occurred")
+			})
 	@PatchMapping("/generate-solidity")
 	public ResponseEntity<String> generateSolidity(@Parameter(description = "ID of the contract to generate Solidity from", required = true) @RequestParam String contractId) {
 		try {
-			return ResponseEntity.ok(contractService.generateSolidity(contractId));
+			return contractService.generateSolidity(contractId) == 0 ? ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body("Solidity code prepared, but not yet compiled. You can view, edit, or compile it") : ResponseEntity.ok("Successfully compiled Solidity source, you can deploy it");
 		} catch (CompilationException e) {
 			return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(e.getLocalizedMessage());
 		} catch (UnauthorizedAccessException e) {

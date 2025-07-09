@@ -146,7 +146,7 @@ public class WindowLauncher {
         pulse.setAutoReverse(true);
 
         Label animatedText = new Label(text);
-        animatedText.setFont(specialBackgroundType.equals(SpecialBackgroundType.HELP) ? Font.font("Digital-7", FontWeight.NORMAL, 32.0) : Font.font("Gunship Condensed IFSCL", FontWeight.BOLD, 32.0));
+        animatedText.setFont(specialBackgroundType.equals(SpecialBackgroundType.HELP) ? Font.font("Digital-7", FontWeight.NORMAL, Math.max(16, Math.min(32, Math.min(animatedText.getWidth(), animatedText.getHeight()) / (animatedText.getText().length() / 10.0)))) : Font.font("Gunship Condensed IFSCL", FontWeight.BOLD, Math.max(16, Math.min(32, Math.min(animatedText.getWidth(), animatedText.getHeight()) / (animatedText.getText().length() / 10.0)))));
         animatedText.setTextFill(specialBackgroundType.getTextColor());
         animatedText.setWrapText(true);
         animatedText.setTextAlignment(TextAlignment.CENTER);

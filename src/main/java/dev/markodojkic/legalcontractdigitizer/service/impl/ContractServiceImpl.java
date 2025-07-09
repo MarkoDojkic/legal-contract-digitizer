@@ -17,12 +17,14 @@ import dev.markodojkic.legalcontractdigitizer.service.IContractService;
 import dev.markodojkic.legalcontractdigitizer.util.AuthSession;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -250,9 +252,10 @@ public class ContractServiceImpl implements IContractService {
 			try {
 				log.debug("Compiling solidity code for contract ID: {}", snapshot.getId());
 				result = compile(cachedSoliditySource);
+				if(result == null) throw new CompilationException("Cannot compile contract");
 			} catch (CompilationException e) {
 				log.error("Solidity compilation failed for contract ID: {}", snapshot.getId(), e);
-				throw new CompilationException("Solidity compilation failed: " + e.getLocalizedMessage());
+				throw e;
 			}
 
 			docRef.update(Map.of(
@@ -346,27 +349,81 @@ public class ContractServiceImpl implements IContractService {
 		return new ContractDeploymentContext(ethereumService.buildDeploymentContext(contractBinary, constructorParams), contractRef);
 	}
 
+	@SneakyThrows
 	private CompilationResult compile(String soliditySource) throws CompilationException {
-		Process solidityExe = null;
+		Path sourceFile = null;
+		var anonymous = new Object() {
+			Process solidityExe = null;
+			CompilationResult result = null;
+			Throwable threadException = null;
+		};
+
 		try {
-			Path sourceFile = Files.createTempFile(Paths.get(System.getProperty("user.home"), "dev.markodojkic", "legal_contract_digitizer", "1.0.0"), "contract", ".sol");
+			// Create a temporary file and write the Solidity source code
+			sourceFile = Files.createTempFile(Paths.get(System.getProperty("user.home"), "dev.markodojkic", "legal_contract_digitizer", "1.0.0"), "contract", ".sol");
 			Files.writeString(sourceFile, soliditySource);
 
-			solidityExe = new ProcessBuilder(solidityCompilerExecutable, "--combined-json", "abi,bin", sourceFile.toAbsolutePath().toString()).start();
+			// Start the Solidity compiler process
+			anonymous.solidityExe = new ProcessBuilder(solidityCompilerExecutable, "--combined-json", "abi,bin", sourceFile.toAbsolutePath().toString()).start();
 
-			if (solidityExe.waitFor() != 0) throw new CompilationException(new String(solidityExe.getErrorStream().readAllBytes()));
+			// Thread to handle the error stream
+			Thread errorStreamThread = new Thread(() -> {
+				try {
+					String errors = new String(anonymous.solidityExe.getErrorStream().readAllBytes());
+					if (!errors.isEmpty()) {
+						log.debug(errors);
+						if(anonymous.threadException == null) anonymous.threadException = new CompilationException(errors);  // If error stream has data, throw an exception
+					}
+				} catch (IOException e) {
+					log.error("Error reading error stream: {}", e.getMessage());
+					if(anonymous.threadException == null)  anonymous.threadException = e;
+				}
+			});
 
-			JsonNode contractsNode = objectMapper.readTree(new String(solidityExe.getInputStream().readAllBytes())).path(CONTRACTS);
-			if (contractsNode.isEmpty()) throw new CompilationException("No smart contracts found in compilation output");
+			// Thread to handle the output stream and parse the contract
+			Thread outputStreamThread = new Thread(() -> {
+				try {
+					String input = new String(anonymous.solidityExe.getInputStream().readAllBytes());
+					log.debug(input);
 
-			JsonNode contractNode = contractsNode.get(contractsNode.fieldNames().next());
+					// Parse the output to find contracts
+					JsonNode contractsNode = objectMapper.readTree(input).path(CONTRACTS);
+					if (contractsNode.isEmpty() && anonymous.threadException == null) anonymous.threadException = new CompilationException("No smart contracts found in compilation output");
 
-			return new CompilationResult(contractNode.get("bin").asText(), contractNode.get("abi").toString());
+					// Get the first contract node
+					JsonNode contractNode = contractsNode.get(contractsNode.fieldNames().next());
+
+					// Store the result in the shared variable
+					synchronized (this) {
+						anonymous.result = new CompilationResult(contractNode.get("bin").asText(), contractNode.get("abi").toString());
+					}
+				} catch (IOException e) {
+					log.error("Error reading output stream: {}", e.getMessage());
+					if(anonymous.threadException == null) anonymous.threadException = e;
+				}
+			});
+
+			// Start both threads to consume the error and output streams
+			errorStreamThread.start();
+			outputStreamThread.start();
+
+			// Wait for the process to finish (blocks until the process exits)
+			int exitCode = anonymous.solidityExe.waitFor();
+
+			// Wait for both threads to finish reading the streams
+			errorStreamThread.join();
+			outputStreamThread.join();
+			if (anonymous.threadException != null) throw anonymous.threadException;
+			else if(exitCode != 0) throw new CompilationException("Solidity compiler exited with code: " + exitCode);
+
+			return anonymous.result;
+		} catch (CompilationException e){
+			throw e;
 		} catch (Exception e) {
-			Thread.currentThread().interrupt();
 			throw new CompilationException(e.getLocalizedMessage());
 		} finally {
-			if (solidityExe != null) solidityExe.destroy();
+			if (sourceFile != null) Files.deleteIfExists(sourceFile);
+			if (anonymous.solidityExe != null) anonymous.solidityExe.destroy();
 		}
 	}
 }
